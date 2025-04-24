@@ -1,0 +1,67 @@
+[build-system]
+requires = ["setuptools>=42", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "q"
+version = "0.2.10"
+description = "Q project"
+readme = "README.md"
+authors = [
+    {name = "Mauro", email = "example@example.com"}
+]
+license = {text = "MIT"}
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+]
+requires-python = ">=3.12"
+dependencies = [
+    "litellm",
+    "rich",
+    "prompt_toolkit",
+    "requests",
+    "beautifulsoup4",
+    "pymupdf",
+    "pdfplumber",
+    "python-magic",
+    "tiktoken",
+    "colorama",
+    "python-dotenv",
+    "typer",
+    "uv",
+    "envhanced @ git+https://github.com/transparentlyai/envhanced.git",
+    "gitignore-parser",  # Added gitignore-parser
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=6.0",
+    "pytest-cov>=2.12",
+    "black>=21.5b2",
+    "isort>=5.9.1",
+    "flake8>=3.9.2",
+    "mypy>=0.812",
+]
+
+[project.scripts]
+q = "q.main:main"
+
+[tool.setuptools]
+packages = ["q"]
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.isort]
+profile = "black"
+line_length = 88
+
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true

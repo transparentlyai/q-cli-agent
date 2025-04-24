@@ -1,0 +1,24 @@
+#!/bin/bash
+
+# q-cli: Wrapper script to run q.py from anywhere using the virtual environment
+
+# Get the directory where this script is located
+SCRIPT_DIR=$(dirname "$(readlink -f "$0")")
+
+# Path to the Python interpreter in the virtual environment
+VENV_PYTHON="$SCRIPT_DIR/../.venv/bin/python"
+
+# Check if the virtual environment Python exists
+if [ ! -f "$VENV_PYTHON" ]; then
+  echo "Error: Virtual environment Python not found at $VENV_PYTHON"
+  exit 1
+fi
+
+# Check if q.py exists
+if [ ! -f "$SCRIPT_DIR/../q.py" ]; then
+  echo "Error: q.py not found at $Q_PROJECT_DIR/q.py"
+  exit 1
+fi
+
+# Run q.py with the virtual environment Python, passing all arguments
+"$VENV_PYTHON" "$SCRIPT_DIR/../q.py" "$@"
