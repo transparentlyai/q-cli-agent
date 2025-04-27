@@ -146,7 +146,7 @@ def show_success(message: str) -> None:
     Args:
         message: The success message to display
     """
-    q_console.print(f"[bold green]{message}[/bold green]\n")
+    q_console.print(f"[green]{message}[/green]\n")
 
 
 def show_error(message: str) -> None:
@@ -156,7 +156,7 @@ def show_error(message: str) -> None:
     Args:
         message: The error message to display
     """
-    q_console.print(f"[bold red]{message}[/bold red]\n")
+    q_console.print(f"[red]{message}[/red]\n")
 
 
 def show_warning(message: str) -> None:
@@ -166,7 +166,7 @@ def show_warning(message: str) -> None:
     Args:
         message: The warning message to display
     """
-    q_console.print(f"[bold yellow]{message}[/bold yellow]\n")
+    q_console.print(f"[yellow]{message}[/yellow]\n")
 
 
 def show_info(message: str) -> None:
@@ -176,4 +176,4 @@ def show_info(message: str) -> None:
     Args:
         message: The informational message to display
     """
-    q_console.print(f"[bold blue]{message}[/bold blue]\n")
+    q_console.print(f"[blue]{message}[/blue]\n")
