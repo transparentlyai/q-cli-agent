@@ -402,6 +402,9 @@ def main_loop(
                 cleaned_text = extraction_result["text"]
                 operation_details = extraction_result["operation"]
                 parsing_error = extraction_result["error"]
+                
+                # Extra check for missed operations (raw tag heuristic)
+                # This is now handled within router.py with the aggressive fallback parser
 
                 # Print the cleaned text to the console first
                 _print_formatted_response(cleaned_text)
@@ -455,6 +458,9 @@ def main_loop(
                         cleaned_text = extraction_result["text"]
                         operation_details = extraction_result["operation"]
                         parsing_error = extraction_result["error"]
+                        
+                        # Extra check for missed operations (raw tag heuristic)
+                        # This is now handled within router.py with the aggressive fallback parser
 
                         # Print the cleaned text response
                         _print_formatted_response(cleaned_text)
