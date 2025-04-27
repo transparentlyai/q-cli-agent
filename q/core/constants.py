@@ -443,4 +443,6 @@ MODELS = (
         "description": "Not tested - need API keys",
     },
 )
-
+MCP_SERVERS = {
+    "context7": {"command": "npx", "args": ["-y", "@upstash/context7-mcp@latest"]}
+}
