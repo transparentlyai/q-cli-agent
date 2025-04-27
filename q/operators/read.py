@@ -20,7 +20,9 @@ from q.core.logging import get_logger
 logger = get_logger(__name__)
 
 
-def execute_read(file_path_str: str) -> Dict[str, Any]:
+def execute_read(
+    file_path_str: str, from_line: int | None = None, to_line: int | None = None
+) -> Dict[str, Any]:
     """
     Reads a file and returns its content. Supports only:
     - Text files: returned as strings
@@ -30,6 +32,8 @@ def execute_read(file_path_str: str) -> Dict[str, Any]:
 
     Args:
         file_path_str: The path to the file to read (relative to CWD or absolute).
+        from_line: Optional starting line number (inclusive, 1-indexed). If None, starts from the first line.
+        to_line: Optional ending line number (inclusive, 1-indexed). If None, reads to the end of the file.
 
     Returns:
         A dictionary containing:
@@ -63,8 +67,19 @@ def execute_read(file_path_str: str) -> Dict[str, Any]:
             mime_type = detect_mime_type(file_path)
             logger.debug(f"Detected MIME type: {mime_type}")
 
+            # Log line range if specified
+            if from_line is not None or to_line is not None:
+                range_info = []
+                if from_line is not None:
+                    range_info.append(f"from={from_line}")
+                if to_line is not None:
+                    range_info.append(f"to={to_line}")
+                logger.debug(f"Reading with line range: {', '.join(range_info)}")
+
         # Process file based on mime type
-        return process_file_by_type(file_path, mime_type, result, file_path_str)
+        return process_file_by_type(
+            file_path, mime_type, result, file_path_str, from_line, to_line
+        )
 
     except FileNotFoundError:
         show_error(f"File not found: {file_path_str}")
@@ -137,17 +152,26 @@ def detect_mime_type(file_path: Path) -> str:
 
 
 def process_file_by_type(
-    file_path: Path, mime_type: str, result: Dict[str, Any], file_path_str: str
+    file_path: Path,
+    mime_type: str,
+    result: Dict[str, Any],
+    file_path_str: str,
+    from_line: int | None = None,
+    to_line: int | None = None,
 ) -> Dict[str, Any]:
     """Process a file based on its MIME type."""
     # Handle text files
     if is_text_file(mime_type):
-        return read_text_file(file_path, result, file_path_str)
-    # Handle PDF files
+        return read_text_file(file_path, result, file_path_str, from_line, to_line)
+    # Handle PDF files - line parameters don't apply to PDFs
     elif mime_type == "application/pdf":
+        if from_line is not None or to_line is not None:
+            logger.debug("Line range parameters ignored for PDF files")
         return read_pdf_file(file_path, result, file_path_str)
-    # Handle image files
+    # Handle image files - line parameters don't apply to images
     elif mime_type.startswith("image/"):
+        if from_line is not None or to_line is not None:
+            logger.debug("Line range parameters ignored for image files")
         return read_image_file(file_path, mime_type, result, file_path_str)
     # Reject all other file types
     else:
@@ -184,21 +208,72 @@ def is_text_file(mime_type: str) -> bool:
 
 
 def read_text_file(
-    file_path: Path, result: Dict[str, Any], file_path_str: str
+    file_path: Path,
+    result: Dict[str, Any],
+    file_path_str: str,
+    from_line: int | None = None,
+    to_line: int | None = None,
 ) -> Dict[str, Any]:
-    """Read a text file and update the result dictionary."""
+    """
+    Read a text file and update the result dictionary.
+
+    Optionally reads only a specific range of lines if from_line and/or to_line are provided.
+    """
     try:
         with show_spinner(
             f"[{OPEARION_SPINNER_MESSAGE_COLOR}]Reading text file[/] [{OPEARION_SPINNER_COMMAND_COLOR}]{file_path_str}...[/]"
         ):
-            content = file_path.read_text(encoding="utf-8")
+            # If we need to read specific lines
+            if from_line is not None or to_line is not None:
+                with open(file_path, "r", encoding="utf-8") as f:
+                    lines = f.readlines()
+
+                # Adjust line indices (convert from 1-indexed to 0-indexed)
+                start_idx = (from_line - 1) if from_line is not None else 0
+                end_idx = to_line if to_line is not None else len(lines)
+
+                # Validate indices
+                if start_idx < 0:
+                    start_idx = 0
+                if end_idx > len(lines):
+                    end_idx = len(lines)
+
+                # Join only the requested lines
+                content = "".join(lines[start_idx:end_idx])
+
+                # Update the reply message to indicate partial content
+                line_info = ""
+                if from_line is not None and to_line is not None:
+                    line_info = f" (lines {from_line}-{to_line})"
+                elif from_line is not None:
+                    line_info = f" (from line {from_line})"
+                elif to_line is not None:
+                    line_info = f" (up to line {to_line})"
+
+                result["reply"] = (
+                    f"Here is the partial content of {file_path_str}{line_info}:"
+                )
+            else:
+                # Read the entire file
+                content = file_path.read_text(encoding="utf-8")
+
             result["reply"] += f"\n\n{content}"
             result["attachment"] = None
             logger.debug(
                 f"Read text content from '{file_path_str}' ({len(content)} chars)"
             )
 
-        show_success(f"Successfully read text file: {file_path_str}")
+        # Update success message to include line information
+        success_message = f"Successfully read text file: {file_path_str}"
+        if from_line is not None or to_line is not None:
+            line_range = []
+            if from_line is not None:
+                line_range.append(f"from line {from_line}")
+            if to_line is not None:
+                line_range.append(f"to line {to_line}")
+            success_message += f" ({' '.join(line_range)})"
+            
+        show_success(success_message)
         return result
     except UnicodeDecodeError:
         show_error(f"Error decoding text file with UTF-8 encoding: {file_path_str}")

@@ -134,15 +134,33 @@ def execute_operation(operation_details: Dict[str, Any]) -> Dict[str, Any]:
                 )
 
             file_path_to_read = operation_content
+            
+            # Extract from and to parameters if they exist
+            from_line = operation_details.get("from")
+            to_line = operation_details.get("to")
+            
+            # Convert to integers if specified
+            from_line = int(from_line) if from_line else None
+            to_line = int(to_line) if to_line else None
+            
             # Read operator now returns a structured response with reply, attachment, and error fields
-            result = run_read_operator(file_path_to_read)
+            result = run_read_operator(file_path_to_read, from_line, to_line)
             execution_results = result
 
             # If the operator reported an error, capture it
             if result.get("error"):
                 execution_error = result["error"]
 
-            logger.info(f"Read operator returned results for file: {file_path_to_read}")
+            # Log with line range information if specified
+            if from_line or to_line:
+                range_info = []
+                if from_line:
+                    range_info.append(f"from={from_line}")
+                if to_line:
+                    range_info.append(f"to={to_line}")
+                logger.info(f"Read operator returned results for file: {file_path_to_read} ({', '.join(range_info)})")
+            else:
+                logger.info(f"Read operator returned results for file: {file_path_to_read}")
 
         elif operation_type == "write":
             # Extract file path and diff content from operation details
