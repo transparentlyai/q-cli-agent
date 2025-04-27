@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "q-cli-agent"
-version = "0.2.12"
+version = "0.2.13"
 description = "Q project"
 readme = "README.md"
 authors = [
@@ -18,7 +18,7 @@ classifiers = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "litellm",
+    "litellm==1.67.1",
     "rich",
     "prompt_toolkit",
     "requests",
@@ -40,6 +40,7 @@ dependencies = [
     "pymupdf4llm",
     "retry",
     "google-cloud-aiplatform",
+    "tiktoken"
 ]
 
 [project.optional-dependencies]
