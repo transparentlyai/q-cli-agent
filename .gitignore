@@ -48,4 +48,4 @@ project.md
 q-test
 
 # Temporary files
-tmp/
+tmp/uv.lock
