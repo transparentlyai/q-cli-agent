@@ -61,7 +61,7 @@ async def fetch_url_async(
             # Raise an HTTPStatusError for bad status codes (4xx or 5xx)
             response.raise_for_status()
             logger.debug(
-                f"Successfully fetched {url} with status {response.status_code} (HTTP/{response.http_version})"
+                f"Successfully fetched [purple]{url}[/] with status {response.status_code} (HTTP/{response.http_version})"
             )
             return response
     except httpx.RequestError as e:
@@ -113,7 +113,7 @@ def fetch_url_sync(
             # Raise an HTTPStatusError for bad status codes (4xx or 5xx)
             response.raise_for_status()
             logger.debug(
-                f"Successfully fetched {url} with status {response.status_code} (HTTP/{response.http_version})"
+                f"Successfully fetched [purple]{url}[/] with status {response.status_code} (HTTP/{response.http_version})"
             )
             return response
     except httpx.RequestError as e:
@@ -174,7 +174,7 @@ def execute_fetch(url: str) -> Dict[str, Any]:
                 try:
                     content = response.json()
                     result["content"] = content
-                    logger.debug(f"Successfully fetched JSON from {url}")
+                    logger.debug(f"Successfully fetched JSON from [purple]{url}[/]")
                 except Exception as e:
                     return handle_error(
                         result,
@@ -188,10 +188,10 @@ def execute_fetch(url: str) -> Dict[str, Any]:
                 content = response.text
                 result["content"] = content
                 logger.debug(
-                    f"Successfully fetched content from {url} ({len(content)} chars)"
+                    f"Successfully fetched content from [purple]{url}[/] ({len(content)} chars)"
                 )
 
-        show_success(f"Successfully fetched URL: {url}")
+        show_success(f"Successfully fetched URL: [purple]{url}[/]")
         return result
 
     except Exception as e:
@@ -218,7 +218,7 @@ def check_approval(url: str, result: Dict[str, Any]) -> Any:
         result["content"] = None
         return result
     elif approval_status == "cancelled":
-        show_warning(f"Fetch operation cancelled: {url}")
+        show_warning(f"Fetch operation cancelled: [purple]{url}[/]")
         logger.warning(f"Fetch operation cancelled by user for URL: '{url}'")
         result["reply"] = f"STOP: URL fetch operation cancelled"
         result["error"] = f"Fetch operation cancelled by user for URL '{url}'."
@@ -254,3 +254,4 @@ def handle_error(
     result["error"] = error_msg
     result["content"] = None
     return result
+

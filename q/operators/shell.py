@@ -198,7 +198,7 @@ def run_shell(command: str) -> Dict[str, Any]:
 
         # Handle the result based on exit code
         if shell_result["exit_code"] == 0:
-            show_success(f"Command executed successfully: {current_command}")
+            show_success(f"Command executed successfully: [purple]{current_command}[/]")
 
             # Convert to JSON string
             result["reply"] = f"Command execution result:\n{json.dumps(command_result)}"
@@ -208,7 +208,7 @@ def run_shell(command: str) -> Dict[str, Any]:
                 if shell_result["stderr"]
                 else f"Command exited with non-zero status: {shell_result['exit_code']}"
             )
-            show_error(f"Command failed: {error_message}")
+            show_error(f"Command failed: [purple]{error_message}[/]")
 
             # Convert to JSON string
             result["reply"] = (
@@ -221,7 +221,7 @@ def run_shell(command: str) -> Dict[str, Any]:
         return handle_error(
             result,
             f"An unexpected error occurred: {e}",
-            f"STOP: Command execution failed",
+            "STOP: Command execution failed",
             "error",
             exc_info=True,
         )
@@ -300,4 +300,3 @@ def handle_error(
     result["reply"] = reply_msg
     result["error"] = error_msg
     return result
-

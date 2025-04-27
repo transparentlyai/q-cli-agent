@@ -21,8 +21,8 @@ from q.core.config import config
 from q.core.logging import get_logger
 from q.core.session import handle_recovery_ui
 from q.utils import llm_helpers  # Import for transplant command
-from q.utils.helpers import get_current_model, save_response_to_file
 from q.utils.config_updater import update_config_provider_model
+from q.utils.helpers import get_current_model, save_response_to_file
 
 # Initialize logger
 logger = get_logger(__name__)
@@ -497,17 +497,19 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
         if config_updated:
             logger.info(f"Updated configuration file with new provider/model: {args}")
         else:
-            logger.warning(f"Failed to update configuration file with new provider/model: {args}")
+            logger.warning(
+                f"Failed to update configuration file with new provider/model: {args}"
+            )
 
         # Update the header/info line - pass conversation object
         q_console.print(
             f"[#666666]Q ver:{__version__} - brain:{get_current_model(conversation)}[/#666666]"
         )
 
-        success_message = f"Successfully transplanted brain to: {target_provider}/{target_model}"
+        success_message = f"Successfully transplanted brain to: [purple]{target_provider}/{target_model}[/]"
         if config_updated:
             success_message += " (configuration updated for future sessions)"
-        
+
         show_success(success_message)
         logger.info(
             f"Transplant successful. New model: {conversation.model}, Provider: {conversation.provider}"
@@ -545,3 +547,4 @@ register_command(
     handle_transplant_command,
     "Switch the LLM provider and model (e.g., /transplant anthropic/claude-3-7-sonnet-latest)",
 )
+

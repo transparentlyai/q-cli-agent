@@ -90,7 +90,7 @@ def write_file(file_path: str, content: str) -> Dict[str, Any]:
 
     # Approval granted
     logger.debug(f"Approval granted for writing to file: {file_path}")
-    show_success(f"Approval granted for writing to file: {file_path}")
+    show_success(f"Approval granted for writing to file: [purple]{file_path}[/]")
 
     try:
         # Create parent directories if they don't exist
