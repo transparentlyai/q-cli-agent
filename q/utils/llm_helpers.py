@@ -10,7 +10,7 @@ import os
 import time
 from typing import Any, Dict, List, Optional
 
-from litellm.utils import token_counter
+import tiktoken
 
 from q.core.constants import (
     ANTHROPIC_DEFAULT_MODEL,
@@ -62,15 +62,38 @@ def count_tokens_in_messages(messages: List[Dict[str, str]], model: str, provide
         Total token count for the messages
     """
     try:
-        # Format model name for token counting
-        model_name = format_model_name(model, provider)
+        # Get the encoding based on the model
+        if provider == "openai":
+            if "gpt-4" in model:
+                encoding = tiktoken.encoding_for_model("gpt-4")
+            elif "gpt-3.5" in model:
+                encoding = tiktoken.encoding_for_model("gpt-3.5-turbo")
+            else:
+                encoding = tiktoken.get_encoding("cl100k_base")  # Default for newer models
+        elif provider == "anthropic":
+            encoding = tiktoken.get_encoding("cl100k_base")  # Claude uses this encoding
+        else:
+            # Default encoding for other providers
+            encoding = tiktoken.get_encoding("cl100k_base")
         
-        # Use litellm's token_counter to count tokens
-        token_count = token_counter(model=model_name, messages=messages)
+        # Count tokens for all messages
+        token_count = 0
+        for msg in messages:
+            # Count tokens in content
+            content = msg.get("content", "")
+            if content:
+                token_count += len(encoding.encode(content))
+            
+            # Add tokens for message format (role, etc.)
+            token_count += 4  # Conservative estimate for message formatting
+        
+        # Add tokens for conversation formatting
+        token_count += 3  # Additional tokens for conversation formatting
+        
         return token_count
     except Exception as e:
         logger.warning(f"Error counting tokens: {str(e)}. Using estimate instead.")
-        # Fallback to a simple estimation if token_counter fails
+        # Fallback to a simple estimation if tiktoken fails
         return sum(len(msg.get("content", "").split()) * 1.3 for msg in messages)
 
 

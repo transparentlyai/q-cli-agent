@@ -389,7 +389,7 @@ class LLMConversation:
             token_count = llm_helpers.count_tokens_in_messages(
                 params["messages"],
                 self.model,
-                self.provider,  # pyright: ignore
+                self.provider,
             )
             logger.debug(f"Request contains approximately {token_count} tokens")
 
