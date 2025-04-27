@@ -3,7 +3,7 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "q"
+name = "q-cli-agent"
 version = "0.2.12"
 description = "Q project"
 readme = "README.md"
@@ -32,7 +32,14 @@ dependencies = [
     "typer",
     "uv",
     "envhanced @ git+https://github.com/transparentlyai/envhanced.git",
-    "gitignore-parser",  # Added gitignore-parser
+    "gitignore-parser",
+    "chardet",
+    "httpx",
+    "patch_ng",
+    "pathspec",
+    "pymupdf4llm",
+    "retry",
+    "google-cloud-aiplatform",
 ]
 
 [project.optional-dependencies]
@@ -43,6 +50,7 @@ dev = [
     "isort>=5.9.1",
     "flake8>=3.9.2",
     "mypy>=0.812",
+    "ipython",
 ]
 
 [project.scripts]

@@ -42,10 +42,6 @@ ENV/
 # Test files
 test_*.txt
 
-# Project specific test files
 .Q/
-project.md
-q-test
 
-# Temporary files
-tmp/uv.lock
+tmp/
