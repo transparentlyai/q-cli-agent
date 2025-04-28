@@ -26,6 +26,7 @@ from q.core.constants import (
     OPENAI_DEFAULT_MODEL,
     VERTEXAI_DEFAULT_LOCATION,
     VERTEXAI_DEFAULT_MODEL,
+    VERTEXAI_THINKING_BUDGET,
 )
 from q.core.logging import get_logger
 
@@ -37,14 +38,17 @@ _litellm = None
 _llm_helpers = None
 _mcp_client = None
 
+
 def _get_litellm():
     """Lazy import for litellm to avoid loading it at startup."""
     global _litellm
     if _litellm is None:
         logger.debug("Lazy loading litellm module")
         import litellm
+
         _litellm = litellm
     return _litellm
+
 
 def _get_llm_helpers():
     """Lazy import for llm_helpers to avoid loading it at startup."""
@@ -52,8 +56,10 @@ def _get_llm_helpers():
     if _llm_helpers is None:
         logger.debug("Lazy loading llm_helpers module")
         from q.utils import llm_helpers
+
         _llm_helpers = llm_helpers
     return _llm_helpers
+
 
 def _get_mcp_client():
     """Lazy import for MCP client to avoid loading it at startup."""
@@ -62,6 +68,7 @@ def _get_mcp_client():
         logger.debug("Lazy loading MCP client module")
         try:
             from q.code import mcp
+
             _mcp_client = mcp
             logger.debug("MCP client module loaded successfully")
         except ImportError:
@@ -262,18 +269,25 @@ class LLMConversation:
         )
         self.rate_limiter = TokenRateLimiter(self.tokens_per_min)
 
+        # Initialize provider-specific settings
+        self._vertexai_thinking_budget = getattr(
+            config, "VERTEXAI_THINKING_BUDGET", VERTEXAI_THINKING_BUDGET
+        )
+
         # Log provider-specific settings for debugging
         logger.debug(f"Provider: {self.provider}")
         logger.debug(f"Model: {self.model}")
         logger.debug(f"Temperature: {self.temperature}")
         logger.debug(f"Max tokens: {self.max_tokens}")
         logger.debug(f"Tokens per minute: {self.tokens_per_min}")
+        if self.provider == "vertexai":
+            logger.debug(f"VertexAI Thinking Budget: {self._vertexai_thinking_budget}")
 
         # Store additional parameters
         self.additional_params = kwargs
 
         # Initialize conversation history
-        self.messages: List[Dict[str, Any]] = [] # Allow Any for tool_calls etc.
+        self.messages: List[Dict[str, Any]] = []  # Allow Any for tool_calls etc.
         if self.system_prompt:
             self.messages.append({"role": "system", "content": self.system_prompt})
 
@@ -323,7 +337,9 @@ class LLMConversation:
             )
 
             # Load credentials if available
-            self.vertex_credentials = llm_helpers.load_vertexai_credentials(credentials_file)
+            self.vertex_credentials = llm_helpers.load_vertexai_credentials(
+                credentials_file
+            )
 
             # Set environment variables for LiteLLM
             llm_helpers.setup_vertexai_environment(self.project_id, self.location)
@@ -374,6 +390,29 @@ class LLMConversation:
         message.update(kwargs)
         self.messages.append(message)
 
+    def set_thinking_budget(self, budget: int) -> None:
+        """
+        Set the thinking budget for Vertex AI models.
+
+        Args:
+            budget: The new thinking budget in tokens.
+        """
+        if self.provider != "vertexai":
+            logger.warning(
+                f"Cannot set thinking budget for non-Vertex AI provider: {self.provider}"
+            )
+            return
+
+        if not isinstance(budget, int) or budget < 0:
+            logger.warning(
+                f"Invalid thinking budget value: {budget}. Must be a non-negative integer."
+            )
+            return
+
+        self._vertexai_thinking_budget = budget
+        logger.debug(
+            f"Updated VertexAI thinking budget to: {self._vertexai_thinking_budget}"
+        )
 
     @retry(
         exceptions=Exception,
@@ -401,16 +440,17 @@ class LLMConversation:
 
             logger.debug("Executing LLM API call")
             # Avoid logging potentially large message history
-            log_params = {k: v for k, v in params.items() if k != 'messages'}
+            log_params = {k: v for k, v in params.items() if k != "messages"}
             # Log message roles and content types for debugging structure
-            if 'messages' in params:
+            if "messages" in params:
                 message_summary = [
                     f"{msg['role']}:{type(msg.get('content', ''))}"
-                    for msg in params['messages']
+                    for msg in params["messages"]
                 ]
-                log_params['message_summary'] = message_summary[-5:] # Log last 5 messages summary
+                log_params["message_summary"] = message_summary[
+                    -5:
+                ]  # Log last 5 messages summary
             logger.inspect(f"LLM parameters (summary): {json.dumps(log_params)}")
-
 
             # Count tokens in the request
             token_count = llm_helpers.count_tokens_in_messages(
@@ -431,24 +471,35 @@ class LLMConversation:
                 # Only print user messages for brevity
                 if params["messages"][-1]["role"] == "user":
                     message_content = params["messages"][-1]["content"]
-                    if isinstance(message_content, list): # Handle complex content
-                         text_part = next((part['text'] for part in message_content if part['type'] == 'text'), '[Complex Content]')
-                         q_console.print(f"[cyan]User: {text_part}[/]")
+                    if isinstance(message_content, list):  # Handle complex content
+                        text_part = next(
+                            (
+                                part["text"]
+                                for part in message_content
+                                if part["type"] == "text"
+                            ),
+                            "[Complex Content]",
+                        )
+                        q_console.print(f"[cyan]User: {text_part}[/]")
                     else:
-                         q_console.print(f"[cyan]User: {message_content}[/]")
-
+                        q_console.print(f"[cyan]User: {message_content}[/]")
 
             ############ Execute the API call #############
             response = litellm.completion(**params)
 
-            if getattr(config, "LLM_IN_OUT", None):
-                 if response.choices and response.choices[0].message:
-                     assistant_content = response.choices[0].message.content or "[No Content]"
-                     tool_calls_info = ""
-                     if response.choices[0].message.tool_calls:
-                         tool_calls_info = f" (Tool Calls: {len(response.choices[0].message.tool_calls)})"
-                     q_console.print(f"[red]Assistant: {assistant_content}{tool_calls_info}[/]")
+            # q_console.print(f"[green]Response: {response}[/]")
 
+            if getattr(config, "LLM_IN_OUT", None):
+                if response.choices and response.choices[0].message:
+                    assistant_content = (
+                        response.choices[0].message.content or "[No Content]"
+                    )
+                    tool_calls_info = ""
+                    if response.choices[0].message.tool_calls:
+                        tool_calls_info = f" (Tool Calls: {len(response.choices[0].message.tool_calls)})"
+                    q_console.print(
+                        f"[red]Assistant: {assistant_content}{tool_calls_info}[/]"
+                    )
 
             # Record token usage for rate limiting
             total_tokens = response.usage.total_tokens
@@ -469,7 +520,6 @@ class LLMConversation:
                 # Re-raise the original exception to preserve type and traceback
                 raise e
 
-
     def _parse_schema(self, schema_str: str) -> Dict[str, Any]:
         """
         Parse a JSON schema string into a Python dictionary.
@@ -482,7 +532,11 @@ class LLMConversation:
         """
         try:
             if not schema_str:
-                return {"type": "object", "properties": {}, "additionalProperties": True}
+                return {
+                    "type": "object",
+                    "properties": {},
+                    "additionalProperties": True,
+                }
 
             schema = json.loads(schema_str)
             return schema
@@ -507,15 +561,18 @@ class LLMConversation:
             result = mcp_client.mcp_list_tools()
 
             if result.get("status") != "success":
-                logger.warning(f"Failed to get MCP tools: {result.get('error', 'Unknown error')}")
+                logger.warning(
+                    f"Failed to get MCP tools: {result.get('error', 'Unknown error')}"
+                )
                 return []
 
             tools = []
             tools_by_server = result.get("tools", {})
-
             for server_name, server_tools in tools_by_server.items():
                 if isinstance(server_tools, dict) and "error" in server_tools:
-                    logger.warning(f"Error getting tools from server '{server_name}': {server_tools['error']}")
+                    logger.warning(
+                        f"Error getting tools from server '{server_name}': {server_tools['error']}"
+                    )
                     continue
 
                 for tool in server_tools:
@@ -528,19 +585,23 @@ class LLMConversation:
                     safe_tool_name = f"{server_name}_{tool_name}".replace("-", "_")
 
                     # Parse the schema if available
-                    parameters = self._parse_schema(tool_schema) if tool_schema else {
-                        "type": "object",
-                        "properties": {},
-                        "additionalProperties": True
-                    }
+                    parameters = (
+                        self._parse_schema(tool_schema)
+                        if tool_schema
+                        else {
+                            "type": "object",
+                            "properties": {},
+                            "additionalProperties": True,
+                        }
+                    )
 
                     tool_def = {
                         "type": "function",
                         "function": {
                             "name": safe_tool_name,
                             "description": f"[{server_name}] {tool_description}",
-                            "parameters": parameters
-                        }
+                            "parameters": parameters,
+                        },
                     }
                     tools.append(tool_def)
 
@@ -563,11 +624,15 @@ class LLMConversation:
             True if tool calls were processed, False otherwise.
         """
         mcp_client = _get_mcp_client()
-        if not mcp_client or not hasattr(response, 'choices') or not response.choices:
+        if not mcp_client or not hasattr(response, "choices") or not response.choices:
             return False
 
         choice = response.choices[0]
-        if not hasattr(choice, 'message') or not hasattr(choice.message, 'tool_calls') or not choice.message.tool_calls:
+        if (
+            not hasattr(choice, "message")
+            or not hasattr(choice.message, "tool_calls")
+            or not choice.message.tool_calls
+        ):
             return False
 
         tool_calls = choice.message.tool_calls
@@ -577,11 +642,18 @@ class LLMConversation:
         assistant_message = choice.message
         self.add_message(
             role="assistant",
-            content=assistant_message.content, # Can be None
-            tool_calls=[ # Store the raw tool_calls structure
-                {"id": tc.id, "type": tc.type, "function": {"name": tc.function.name, "arguments": tc.function.arguments}}
+            content=assistant_message.content,  # Can be None
+            tool_calls=[  # Store the raw tool_calls structure
+                {
+                    "id": tc.id,
+                    "type": tc.type,
+                    "function": {
+                        "name": tc.function.name,
+                        "arguments": tc.function.arguments,
+                    },
+                }
                 for tc in tool_calls
-            ]
+            ],
         )
 
         tool_results_to_add = []
@@ -592,44 +664,57 @@ class LLMConversation:
             try:
                 tool_args = json.loads(tool_call.function.arguments)
             except json.JSONDecodeError as e:
-                 logger.error(f"Failed to parse tool arguments for {tool_name}: {e}")
-                 tool_results_to_add.append({
-                     "tool_call_id": tool_id,
-                     "role": "tool",
-                     "content": f"Error: Failed to parse arguments: {e}"
-                 })
-                 continue
-
+                logger.error(f"Failed to parse tool arguments for {tool_name}: {e}")
+                tool_results_to_add.append(
+                    {
+                        "tool_call_id": tool_id,
+                        "role": "tool",
+                        "content": f"Error: Failed to parse arguments: {e}",
+                    }
+                )
+                continue
 
             # Parse the server name and actual tool name from the tool name
-            parts = tool_name.split('_', 1)
+            parts = tool_name.split("_", 1)
             if len(parts) < 2:
-                logger.warning(f"Invalid tool name format: {tool_name}, expected 'server_name_tool_name'")
-                tool_results_to_add.append({
-                    "tool_call_id": tool_id,
-                    "role": "tool",
-                    "content": f"Error: Invalid tool name format: {tool_name}, expected 'server_name_tool_name'"
-                })
+                logger.warning(
+                    f"Invalid tool name format: {tool_name}, expected 'server_name_tool_name'"
+                )
+                tool_results_to_add.append(
+                    {
+                        "tool_call_id": tool_id,
+                        "role": "tool",
+                        "content": f"Error: Invalid tool name format: {tool_name}, expected 'server_name_tool_name'",
+                    }
+                )
                 continue
 
             server_name = parts[0]
             # The actual tool name as known by the MCP server (may contain hyphens)
             actual_tool_name = parts[1]
 
-            logger.debug(f"Calling MCP tool '{actual_tool_name}' on server '{server_name}' with args: {tool_args}")
+            logger.debug(
+                f"Calling MCP tool '{actual_tool_name}' on server '{server_name}' with args: {tool_args}"
+            )
 
             try:
                 # Call the tool via MCP
-                result = mcp_client.mcp_call_tool(server_name, actual_tool_name, tool_args)
+                result = mcp_client.mcp_call_tool(
+                    server_name, actual_tool_name, tool_args
+                )
 
                 if isinstance(result, dict) and "error" in result:
                     error_msg = result["error"]
-                    logger.error(f"Error calling MCP tool '{actual_tool_name}': {error_msg}")
-                    tool_results_to_add.append({
-                        "tool_call_id": tool_id,
-                        "role": "tool",
-                        "content": f"Error: {error_msg}"
-                    })
+                    logger.error(
+                        f"Error calling MCP tool '{actual_tool_name}': {error_msg}"
+                    )
+                    tool_results_to_add.append(
+                        {
+                            "tool_call_id": tool_id,
+                            "role": "tool",
+                            "content": f"Error: {error_msg}",
+                        }
+                    )
                 else:
                     # Format the result as a tool response
                     # Ensure content is JSON serializable, default to string representation
@@ -637,32 +722,39 @@ class LLMConversation:
                     try:
                         json_content = json.dumps(content_to_send)
                     except TypeError:
-                        logger.warning(f"Tool result for {actual_tool_name} is not JSON serializable, sending as string.")
+                        logger.warning(
+                            f"Tool result for {actual_tool_name} is not JSON serializable, sending as string."
+                        )
                         json_content = str(content_to_send)
 
-                    tool_results_to_add.append({
+                    tool_results_to_add.append(
+                        {
+                            "tool_call_id": tool_id,
+                            "role": "tool",
+                            "content": json_content,
+                        }
+                    )
+            except Exception as e:
+                logger.error(
+                    f"Exception calling MCP tool '{actual_tool_name}': {str(e)}"
+                )
+                tool_results_to_add.append(
+                    {
                         "tool_call_id": tool_id,
                         "role": "tool",
-                        "content": json_content
-                    })
-            except Exception as e:
-                logger.error(f"Exception calling MCP tool '{actual_tool_name}': {str(e)}")
-                tool_results_to_add.append({
-                    "tool_call_id": tool_id,
-                    "role": "tool",
-                    "content": f"Error: {str(e)}"
-                })
+                        "content": f"Error: {str(e)}",
+                    }
+                )
 
         # Add all tool results to the conversation history
         for result in tool_results_to_add:
             self.add_message(
                 role="tool",
                 content=result["content"],
-                tool_call_id=result["tool_call_id"]
+                tool_call_id=result["tool_call_id"],
             )
 
-        return True # Indicate that tool calls were processed
-
+        return True  # Indicate that tool calls were processed
 
     def send_message(
         self,
@@ -679,7 +771,8 @@ class LLMConversation:
             tools: Optional tools configuration (e.g., for function calling or grounding)
 
         Returns:
-            The LLM's final response text after handling any tool calls.
+            The LLM's final response text after handling any tool calls.\n
+
         """
         # Lazy load modules
         litellm = _get_litellm()
@@ -696,7 +789,7 @@ class LLMConversation:
         # Prepare initial parameters for completion
         params = {
             "model": model_name,
-            "messages": self.messages, # Start with current history
+            "messages": self.messages,  # Start with current history
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             **self.additional_params,
@@ -710,6 +803,14 @@ class LLMConversation:
                 params["vertex_location"] = self.location
             if hasattr(self, "vertex_credentials") and self.vertex_credentials:
                 params["vertex_credentials"] = self.vertex_credentials
+            # Add thinking parameter for Vertex AI using the instance variable
+            params["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": self._vertexai_thinking_budget,
+            }
+            logger.debug(
+                f"Added thinking parameter for Vertex AI: {params['thinking']}"
+            )
 
         # Add response format if provided
         if response_format:
@@ -738,7 +839,7 @@ class LLMConversation:
         }
 
         # Loop to handle potential tool call cycles
-        max_tool_cycles = 5 # Prevent infinite loops
+        max_tool_cycles = 5  # Prevent infinite loops
         for cycle in range(max_tool_cycles):
             try:
                 logger.debug(f"Sending request to LLM (Cycle {cycle + 1})")
@@ -747,37 +848,47 @@ class LLMConversation:
                 response = self._execute_llm_call(params)
 
                 # Update usage information from this call
-                if hasattr(response, 'usage'):
+                if hasattr(response, "usage"):
                     total_usage["prompt_tokens"] += response.usage.prompt_tokens
                     total_usage["completion_tokens"] += response.usage.completion_tokens
                     total_usage["total_tokens"] += response.usage.total_tokens
-                    logger.inspect(f"Token usage (cycle {cycle + 1}): {response.usage.total_tokens} tokens")
+                    logger.inspect(
+                        f"Token usage (cycle {cycle + 1}): {response.usage.total_tokens} tokens"
+                    )
 
                 # Check for tool calls in the response
                 processed_tools = self._handle_tool_calls(response)
 
                 if processed_tools:
-                    logger.debug("Tool calls processed, continuing loop for LLM response.")
+                    logger.debug(
+                        "Tool calls processed, continuing loop for LLM response."
+                    )
                     # The history has been updated by _handle_tool_calls, loop again
                     continue
                 else:
                     # No tool calls, this is the final response (or an error occurred)
                     response_content = response.choices[0].message.content
-                    response_text = response_content if response_content is not None else ""
-                    full_response_text = response_text # Use the final response text
+                    response_text = (
+                        response_content if response_content is not None else ""
+                    )
+                    full_response_text = response_text  # Use the final response text
 
                     # Add final assistant response to history
                     self.add_message("assistant", full_response_text)
-                    logger.debug("Added final assistant response to conversation history")
-                    logger.inspect(f"Total token usage for request: {total_usage['total_tokens']} tokens")
-                    return full_response_text # Exit loop and return
+                    logger.debug(
+                        "Added final assistant response to conversation history"
+                    )
+                    logger.inspect(
+                        f"Total token usage for request: {total_usage['total_tokens']} tokens"
+                    )
+                    return full_response_text  # Exit loop and return
 
             except Exception as e:
                 error_msg = f"Error communicating with LLM: {str(e)}"
-                logger.error(error_msg, exc_info=True) # Log traceback for debugging
+                logger.error(error_msg, exc_info=True)  # Log traceback for debugging
                 # Add error as assistant message to maintain conversation flow
                 self.add_message("assistant", error_msg)
-                return error_msg # Return error
+                return error_msg  # Return error
 
         # If loop finishes without returning (e.g., max cycles reached)
         timeout_msg = "Exceeded maximum tool call cycles."
@@ -785,14 +896,14 @@ class LLMConversation:
         self.add_message("assistant", timeout_msg)
         return timeout_msg
 
-
     def send_message_with_file(self, reply: str, file_data: Dict[str, Any]) -> str:
         """
         Send a message to the LLM with a file attachment (treated as image for now).
 
         Args:
             reply: The text message to send
-            file_data: Dictionary containing file information with keys:
+            file_data: Dictionary containing file information with keys:\n
+
                 - mime_type: The MIME type of the file
                 - content: The encoded file content
                 - encoding: The encoding used (e.g., "base64")
@@ -806,9 +917,10 @@ class LLMConversation:
             return self.send_message_with_image(reply, file_data)
         else:
             # Fallback: Send only the text part if the file is not an image
-            logger.warning(f"File type {file_data.get('mime_type')} not directly supported as image. Sending text only.")
+            logger.warning(
+                f"File type {file_data.get('mime_type')} not directly supported as image. Sending text only."
+            )
             return self.send_message(reply)
-
 
     def send_message_with_image(self, reply: str, image_data: Dict[str, Any]) -> str:
         """
@@ -834,7 +946,9 @@ class LLMConversation:
 
         # Validate image data
         if not all(k in image_data for k in ["mime_type", "content", "encoding"]):
-            error_msg = "Image data missing required fields (mime_type, content, encoding)"
+            error_msg = (
+                "Image data missing required fields (mime_type, content, encoding)"
+            )
             logger.error(error_msg)
             # Add error as assistant message? No, this is an input error.
             return f"Error: {error_msg}"
@@ -869,7 +983,7 @@ class LLMConversation:
         # Prepare parameters for completion
         params = {
             "model": model_name,
-            "messages": self.messages, # Use the updated history
+            "messages": self.messages,  # Use the updated history
             "temperature": self.temperature,
             "max_tokens": self.max_tokens,
             **self.additional_params,
@@ -883,13 +997,20 @@ class LLMConversation:
                 params["vertex_location"] = self.location
             if hasattr(self, "vertex_credentials") and self.vertex_credentials:
                 params["vertex_credentials"] = self.vertex_credentials
+            # Add thinking parameter for Vertex AI using the instance variable
+            params["thinking"] = {
+                "type": "enabled",
+                "budget_tokens": self._vertexai_thinking_budget,
+            }
+            logger.debug(
+                f"Added thinking parameter for Vertex AI: {params['thinking']}"
+            )
 
         # Get MCP tools if available
         mcp_tools = self._get_mcp_tools()
         if mcp_tools:
             params["tools"] = mcp_tools
             logger.debug(f"Added {len(mcp_tools)} MCP tools to the request")
-
 
         full_response_text = ""
         total_usage = {
@@ -908,44 +1029,53 @@ class LLMConversation:
                 response = self._execute_llm_call(params)
 
                 # Update usage information
-                if hasattr(response, 'usage'):
+                if hasattr(response, "usage"):
                     total_usage["prompt_tokens"] += response.usage.prompt_tokens
                     total_usage["completion_tokens"] += response.usage.completion_tokens
                     total_usage["total_tokens"] += response.usage.total_tokens
-                    logger.inspect(f"Token usage (cycle {cycle + 1}): {response.usage.total_tokens} tokens")
+                    logger.inspect(
+                        f"Token usage (cycle {cycle + 1}): {response.usage.total_tokens} tokens"
+                    )
 
                 # Check for tool calls in the response
                 processed_tools = self._handle_tool_calls(response)
 
                 if processed_tools:
-                    logger.debug("Tool calls processed, continuing loop for LLM response.")
+                    logger.debug(
+                        "Tool calls processed, continuing loop for LLM response."
+                    )
                     # History updated by _handle_tool_calls, loop again
                     continue
                 else:
                     # No tool calls, this is the final response
                     response_content = response.choices[0].message.content
-                    response_text = response_content if response_content is not None else ""
+                    response_text = (
+                        response_content if response_content is not None else ""
+                    )
                     full_response_text = response_text
 
                     # Add final assistant response to history
                     self.add_message("assistant", full_response_text)
-                    logger.debug("Added final assistant response to conversation history")
-                    logger.inspect(f"Total token usage for request: {total_usage['total_tokens']} tokens")
-                    return full_response_text # Exit loop and return
+                    logger.debug(
+                        "Added final assistant response to conversation history"
+                    )
+                    logger.inspect(
+                        f"Total token usage for request: {total_usage['total_tokens']} tokens"
+                    )
+                    return full_response_text  # Exit loop and return
 
             except Exception as e:
                 error_msg = f"Error communicating with LLM: {str(e)}"
                 logger.error(error_msg, exc_info=True)
                 # Add error as assistant message
                 self.add_message("assistant", error_msg)
-                return error_msg # Return error
+                return error_msg  # Return error
 
         # If loop finishes without returning
         timeout_msg = "Exceeded maximum tool call cycles."
         logger.warning(timeout_msg)
         self.add_message("assistant", timeout_msg)
         return timeout_msg
-
 
     def get_conversation_history(self) -> List[Dict[str, Any]]:
         """

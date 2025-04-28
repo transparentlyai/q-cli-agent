@@ -23,20 +23,21 @@ from q.core.session import handle_recovery_ui
 from q.utils import llm_helpers  # Import for transplant command
 from q.utils.config_updater import update_config_provider_model
 from q.utils.helpers import get_current_model, save_response_to_file
-from q.utils.mcp_servers import get_all_mcp_servers, check_mcp_servers_file
+from q.utils.mcp_servers import check_mcp_servers_file, get_all_mcp_servers
 
 # Import MCP client
 try:
-    from q.code.mcp import mcp_connect, mcp_disconnect, mcp_list_tools
     from q.cli.mcp_commands import (
+        handle_mcp_add_server_command,
         handle_mcp_connect_command,
         handle_mcp_disconnect_command,
-        handle_mcp_list_tools_command,
+        handle_mcp_fix_command,
         handle_mcp_list_servers_command,
-        handle_mcp_add_server_command,
+        handle_mcp_list_tools_command,
         handle_mcp_remove_server_command,
-        handle_mcp_fix_command
     )
+    from q.code.mcp import mcp_connect, mcp_disconnect, mcp_list_tools
+
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
@@ -285,6 +286,7 @@ class CommandCompleter(Completer):
 
                 # Only show user-defined servers for removal
                 from q.utils.mcp_servers import load_user_mcp_servers
+
                 user_servers, _ = load_user_mcp_servers()
                 for server_name in user_servers.keys():
                     # Suggest if the server name starts with what user typed
@@ -303,6 +305,23 @@ class CommandCompleter(Completer):
             if command == "/save":
                 return
 
+            # --- Argument completion for /t-budget ---
+            if command == "/t-budget":
+                # We expect an integer argument. We can't suggest specific integers,
+                # but we can indicate that an integer is expected.
+                # If the user has already typed something, don't suggest anything,
+                # let them type the number.
+                if word_count == 1 or (word_count == 2 and not on_space):
+                    # Suggest a placeholder or hint if no number is started
+                    if not words[-1].isdigit():
+                        yield Completion(
+                            " <integer>",
+                            start_position=0 if word_count == 1 else -len(words[-1]),
+                            display="<integer>",
+                            display_meta="Thinking budget in tokens",
+                        )
+                return  # Handled /t-budget args
+
             # --- Add other command argument completions here ---
             # Example:
             # if command == "/some_other_command":
@@ -314,6 +333,57 @@ class CommandCompleter(Completer):
 
 
 # Command handlers
+
+
+def handle_t_budget_command(args: str, context: Dict[str, Any]) -> bool:
+    """
+    Handle the /t-budget command to change the Vertex AI thinking budget.
+
+    Args:
+        args: The integer value for the thinking budget.
+        context: Context containing the conversation instance.
+
+    Returns:
+        True to indicate the command was handled successfully (continue loop).
+    """
+    conversation = context.get("conversation")
+    if not conversation:
+        show_error("No active conversation instance found.")
+        return True
+
+    if conversation.provider != "vertexai":
+        show_error(
+            f"Thinking budget can only be set for Vertex AI models. Current provider is {conversation.provider}."
+        )
+        return True
+
+    if not args:
+        # Show current budget if no argument is provided
+        current_budget = getattr(
+            conversation,
+            "_vertexai_thinking_budget",
+            constants.VERTEXAI_THINKING_BUDGET,
+        )
+        show_success(f"Current Vertex AI thinking budget is: {current_budget}")
+        return True
+
+    try:
+        new_budget = int(args.strip())
+        if new_budget < 0:
+            show_error("Thinking budget must be a non-negative integer.")
+            return True
+
+        conversation.set_thinking_budget(new_budget)
+        show_success(f"Vertex AI thinking budget set to: {new_budget}")
+        return True
+
+    except ValueError:
+        show_error("Invalid argument. Usage: /t-budget <integer>")
+        return True
+    except Exception as e:
+        show_error(f"An unexpected error occurred: {e}")
+        logger.error(f"Error handling /t-budget command: {e}", exc_info=True)
+        return True
 
 
 def handle_exit_command(args: str, context: Dict[str, Any]) -> bool:
@@ -381,7 +451,7 @@ def handle_clear_command(args: str, context: Dict[str, Any]) -> bool:
 
     Args:
         args: Command arguments (unused)
-        context: Command context containing the conversation instance
+        context: Context containing the conversation instance
 
     Returns:
         True to indicate the command was handled successfully (continue loop).
@@ -605,6 +675,12 @@ register_command(
     handle_transplant_command,
     "Switch the LLM provider and model (e.g., /transplant anthropic/claude-3-7-sonnet-latest)",
 )
+register_command(
+    "/t-budget",
+    handle_t_budget_command,
+    "Set the Vertex AI thinking budget in tokens (e.g., /t-budget 4096)",
+)
+
 
 # Register MCP commands if available
 if MCP_AVAILABLE:
@@ -643,3 +719,4 @@ if MCP_AVAILABLE:
         handle_mcp_fix_command,
         "Fix a malformed MCP servers configuration file",
     )
+
