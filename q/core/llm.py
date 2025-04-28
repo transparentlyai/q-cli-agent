@@ -11,6 +11,7 @@ from retry import retry
 
 from q.cli.qconsole import q_console
 from q.core.config import config
+from q.core.constants import MODELS  # Import MODELS
 from q.core.constants import (
     ANTHROPIC_DEFAULT_MODEL,
     DEFAULT_MAX_TOKENS,
@@ -440,7 +441,7 @@ class LLMConversation:
 
             logger.debug("Executing LLM API call")
             # Avoid logging potentially large message history
-            log_params = {k: v for k, v in params.items() if k != "messages"}
+            log_params = {k: v for k, v in params.items() if k != "messages"}\
             # Log message roles and content types for debugging structure
             if "messages" in params:
                 message_summary = [
@@ -771,7 +772,8 @@ class LLMConversation:
             tools: Optional tools configuration (e.g., for function calling or grounding)
 
         Returns:
-            The LLM's final response text after handling any tool calls.\n
+            The LLM's final response text after handling any tool calls.
+
 
         """
         # Lazy load modules
@@ -795,7 +797,7 @@ class LLMConversation:
             **self.additional_params,
         }
 
-        # Add Vertex AI specific parameters if using Vertex AI
+        # Add provider-specific parameters
         if self.provider == "vertexai":
             if hasattr(self, "project_id") and self.project_id:
                 params["vertex_project"] = self.project_id
@@ -803,14 +805,29 @@ class LLMConversation:
                 params["vertex_location"] = self.location
             if hasattr(self, "vertex_credentials") and self.vertex_credentials:
                 params["vertex_credentials"] = self.vertex_credentials
-            # Add thinking parameter for Vertex AI using the instance variable
-            params["thinking"] = {
-                "type": "enabled",
-                "budget_tokens": self._vertexai_thinking_budget,
-            }
-            logger.debug(
-                f"Added thinking parameter for Vertex AI: {params['thinking']}"
+
+            # Find the model entry to check if it accepts 'thinking'
+            current_model_info = next(
+                (
+                    m
+                    for m in MODELS
+                    if m.get("provider") == self.provider and m.get("model") == self.model
+                ),
+                None,
             )
+
+            # Add thinking parameter for Vertex AI only if the model accepts it
+            if current_model_info and "accepts" in current_model_info and "thinking" in current_model_info["accepts"]:
+                params["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": self._vertexai_thinking_budget,
+                }
+                logger.debug(
+                    f"Added thinking parameter for Vertex AI: {params['thinking']}"
+                )
+            else:
+                 logger.debug(f"Model {self.model} does not accept 'thinking' parameter.")
+
 
         # Add response format if provided
         if response_format:
@@ -902,7 +919,8 @@ class LLMConversation:
 
         Args:
             reply: The text message to send
-            file_data: Dictionary containing file information with keys:\n
+            file_data: Dictionary containing file information with keys:
+
 
                 - mime_type: The MIME type of the file
                 - content: The encoded file content
@@ -997,14 +1015,28 @@ class LLMConversation:
                 params["vertex_location"] = self.location
             if hasattr(self, "vertex_credentials") and self.vertex_credentials:
                 params["vertex_credentials"] = self.vertex_credentials
-            # Add thinking parameter for Vertex AI using the instance variable
-            params["thinking"] = {
-                "type": "enabled",
-                "budget_tokens": self._vertexai_thinking_budget,
-            }
-            logger.debug(
-                f"Added thinking parameter for Vertex AI: {params['thinking']}"
+
+            # Find the model entry to check if it accepts 'thinking'
+            current_model_info = next(
+                (
+                    m
+                    for m in MODELS
+                    if m.get("provider") == self.provider and m.get("model") == self.model
+                ),
+                None,
             )
+
+            # Add thinking parameter for Vertex AI only if the model accepts it
+            if current_model_info and "accepts" in current_model_info and "thinking" in current_model_info["accepts"]:
+                params["thinking"] = {
+                    "type": "enabled",
+                    "budget_tokens": self._vertexai_thinking_budget,
+                }
+                logger.debug(
+                    f"Added thinking parameter for Vertex AI: {params['thinking']}"
+                )
+            else:
+                 logger.debug(f"Model {self.model} does not accept 'thinking' parameter.")
 
         # Get MCP tools if available
         mcp_tools = self._get_mcp_tools()
