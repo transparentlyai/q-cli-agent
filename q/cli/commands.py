@@ -233,7 +233,7 @@ class CommandCompleter(Completer):
         if word_count > 1 or (word_count == 1 and on_space):
             command = words[0].lower()
 
-            # --- Argument completion for /transplant ---
+            # --- Argument completion for /transplant ---\n
             if command == "/transplant":
                 # Argument is the word being typed, or empty if just after space
                 current_arg = words[1] if word_count > 1 and not on_space else ""
@@ -256,7 +256,7 @@ class CommandCompleter(Completer):
                         )
                 return  # Handled /transplant args
 
-            # --- Argument completion for /mcp-connect ---
+            # --- Argument completion for /mcp-connect ---\n
             if command == "/mcp-connect" and MCP_AVAILABLE:
                 # Argument is the word being typed, or empty if just after space
                 current_arg = words[1] if word_count > 1 and not on_space else ""
@@ -277,7 +277,7 @@ class CommandCompleter(Completer):
                             )
                 return  # Handled /mcp-connect args
 
-            # --- Argument completion for /mcp-remove ---
+            # --- Argument completion for /mcp-remove ---\n
             if command == "/mcp-remove" and MCP_AVAILABLE:
                 # Argument is the word being typed, or empty if just after space
                 current_arg = words[1] if word_count > 1 and not on_space else ""
@@ -299,20 +299,20 @@ class CommandCompleter(Completer):
                         )
                 return  # Handled /mcp-remove args
 
-            # --- Argument completion for /save ---
+            # --- Argument completion for /save ---\n
             # This command expects a file path, which is handled by PathCompleter in qprompt.py
-            # We don't need to yield specific completions here, but we stop processing.
+            # We don't need to yield specific completions here, but we stop processing.\n
             if command == "/save":
                 return
 
-            # --- Argument completion for /t-budget ---
+            # --- Argument completion for /t-budget ---\n
             if command == "/t-budget":
-                # We expect an integer argument. We can't suggest specific integers,
-                # but we can indicate that an integer is expected.
-                # If the user has already typed something, don't suggest anything,
-                # let them type the number.
+                # We expect an integer argument. We can't suggest specific integers,\n
+                # but we can indicate that an integer is expected.\n
+                # If the user has already typed something, don't suggest anything,\n
+                # let them type the number.\n
                 if word_count == 1 or (word_count == 2 and not on_space):
-                    # Suggest a placeholder or hint if no number is started
+                    # Suggest a placeholder or hint if no number is started\n
                     if not words[-1].isdigit():
                         yield Completion(
                             " <integer>",
@@ -322,13 +322,13 @@ class CommandCompleter(Completer):
                         )
                 return  # Handled /t-budget args
 
-            # --- Add other command argument completions here ---
-            # Example:
-            # if command == "/some_other_command":
-            #    # yield completions for its arguments
-            #    return
+            # --- Add other command argument completions here ---\n
+            # Example:\n
+            # if command == "/some_other_command":\n
+            #    # yield completions for its arguments\n
+            #    return\n
 
-        # Default: No specific completions found for this state
+        # Default: No specific completions found for this state\n
         yield from []  # Explicitly yield nothing
 
 
@@ -372,6 +372,9 @@ def handle_t_budget_command(args: str, context: Dict[str, Any]) -> bool:
         if new_budget < 0:
             show_error("Thinking budget must be a non-negative integer.")
             return True
+        if new_budget > 24575:
+            show_error("Thinking budget cannot exceed 24575 tokens.")
+            return True
 
         conversation.set_thinking_budget(new_budget)
         show_success(f"Vertex AI thinking budget set to: {new_budget}")
@@ -410,16 +413,16 @@ def handle_save_command(args: str, context: Dict[str, Any]) -> bool:
         context: Context containing the latest_response
 
     Returns:
-        True to indicate the command was handled successfully (continue loop).
+        True to indicate the command was handled successfully (continue loop).\n
     """
     if not args:
         show_error("No file path provided. Usage: /save <filepath>")
-        return True  # Command was handled (though with an error)
+        return True  # Command was handled (though with an error)\n
 
     latest_response = context.get("latest_response", "")
     if not latest_response:
         show_warning("No response to save.")
-        return True  # Command was handled
+        return True  # Command was handled\n
 
     success, message = save_response_to_file(latest_response, args)
     if success:
@@ -439,7 +442,7 @@ def handle_help_command(args: str, context: Dict[str, Any]) -> bool:
         context: Command context (unused)
 
     Returns:
-        True to indicate the command was handled successfully (continue loop).
+        True to indicate the command was handled successfully (continue loop).\n
     """
     list_commands()
     return True  # Command was handled
@@ -454,7 +457,7 @@ def handle_clear_command(args: str, context: Dict[str, Any]) -> bool:
         context: Context containing the conversation instance
 
     Returns:
-        True to indicate the command was handled successfully (continue loop).
+        True to indicate the command was handled successfully (continue loop).\n
     """
     # First clear the terminal screen
     clear_terminal_screen()
@@ -463,7 +466,7 @@ def handle_clear_command(args: str, context: Dict[str, Any]) -> bool:
     conversation = context.get("conversation")
     if not conversation:
         show_warning("No active conversation to clear.")
-        return True  # Command was handled
+        return True  # Command was handled\n
 
     # Clear the conversation history but keep the system prompt
     conversation.clear_conversation(keep_system_prompt=True)
@@ -489,12 +492,12 @@ def handle_recover_command(args: str, context: Dict[str, Any]) -> bool:
         context: Command context containing the conversation instance
 
     Returns:
-        True to indicate the command was handled successfully (continue loop).
+        True to indicate the command was handled successfully (continue loop).\n
     """
     conversation = context.get("conversation")
     if not conversation:
         show_error("No active conversation to recover into.")
-        return True  # Command was handled
+        return True  # Command was handled\n
 
     # Use the shared recovery UI handler
     handle_recovery_ui(conversation, q_console, q_console.status)
@@ -511,7 +514,7 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
         context: Context containing the conversation instance
 
     Returns:
-        True to indicate the command was handled successfully (continue loop).
+        True to indicate the command was handled successfully (continue loop).\n
     """
     conversation = context.get("conversation")  # Get conversation early
 
@@ -538,12 +541,12 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
             q_console.print(
                 f"  [cyan]{model_info['provider']}/{model_info['model']}[/cyan]: {model_info['description']}"
             )
-        return True  # Command was handled (though with an error)
+        return True  # Command was handled (though with an error)\n
 
     # Validate format
     if "/" not in args:
         show_error("Invalid format. Use: /transplant <provider>/<model>")
-        return True  # Command was handled
+        return True  # Command was handled\n
 
     target_provider, target_model = args.split("/", 1)
     target_provider = target_provider.lower()
@@ -566,13 +569,13 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
             q_console.print(
                 f"  [cyan]{model_info['provider']}/{model_info['model']}[/cyan]: {model_info['description']}"
             )
-        return True  # Command was handled
+        return True  # Command was handled\n
 
     # Check if conversation object exists (should always exist here if called from main loop)
     if not conversation:
         show_error("Internal error: No active conversation instance found.")
         logger.error("handle_transplant_command called without conversation in context")
-        return True  # Command was handled
+        return True  # Command was handled\n
 
     # Check if already using the target model
     # Use get_current_model to handle potential prefix inconsistencies if needed, though direct comparison should work
@@ -581,7 +584,7 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
         and get_current_model(conversation) == target_model
     ):
         show_warning(f"Already using model '{args}'. No change made.")
-        return True  # Command was handled
+        return True  # Command was handled\n
 
     try:
         logger.info(
@@ -650,7 +653,7 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
     except Exception as e:
         show_error(f"Failed to transplant brain: {e}")
         logger.error(f"Error during transplant to {args}: {e}", exc_info=True)
-        # TODO: Consider reverting conversation.provider/model on error?
+        # TODO: Consider reverting conversation.provider/model on error?\n
 
     return True  # Command was handled
 
