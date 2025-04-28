@@ -1,0 +1,37 @@
+{
+  "context7": {
+    "command": "npx",
+    "args": ["-y", "@upstash/context7-mcp@latest"],
+    "env": {
+      "CONTEXT7_API_KEY": "your-api-key-here",
+      "CONTEXT7_DEBUG": "true"
+    }
+  },
+  "exa": {
+    "command": "npx",
+    "args": ["exa-mcp-server"],
+    "env": {
+      "EXA_API_KEY": "your-exa-api-key-here",
+      "EXA_MODEL": "exa-large",
+      "EXA_MAX_RESULTS": "10"
+    }
+  },
+  "custom-python-server": {
+    "command": "python",
+    "args": ["-m", "my_mcp_server"],
+    "env": {
+      "PYTHONPATH": "/path/to/server",
+      "SERVER_API_KEY": "your-server-api-key",
+      "LOG_LEVEL": "INFO"
+    }
+  },
+  "local-node-server": {
+    "command": "node",
+    "args": ["./mcp-server.js"],
+    "env": {
+      "NODE_ENV": "production",
+      "PORT": "8080",
+      "DEBUG": "false"
+    }
+  }
+}

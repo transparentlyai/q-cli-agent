@@ -23,10 +23,20 @@ from q.core.session import handle_recovery_ui
 from q.utils import llm_helpers  # Import for transplant command
 from q.utils.config_updater import update_config_provider_model
 from q.utils.helpers import get_current_model, save_response_to_file
+from q.utils.mcp_servers import get_all_mcp_servers, check_mcp_servers_file
 
 # Import MCP client
 try:
     from q.code.mcp import mcp_connect, mcp_disconnect, mcp_list_tools
+    from q.cli.mcp_commands import (
+        handle_mcp_connect_command,
+        handle_mcp_disconnect_command,
+        handle_mcp_list_tools_command,
+        handle_mcp_list_servers_command,
+        handle_mcp_add_server_command,
+        handle_mcp_remove_server_command,
+        handle_mcp_fix_command
+    )
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
@@ -252,16 +262,40 @@ class CommandCompleter(Completer):
                 # Replace current arg or insert at cursor(0)
                 start_pos = -len(current_arg) if word_count > 1 and not on_space else 0
 
-                for server_name in constants.MCP_SERVERS.keys():
+                # Check if the MCP servers file is valid
+                is_valid, _ = check_mcp_servers_file()
+                if is_valid:
+                    for server_name in get_all_mcp_servers().keys():
+                        # Suggest if the server name starts with what user typed
+                        if server_name.startswith(current_arg):
+                            yield Completion(
+                                server_name,
+                                start_position=start_pos,
+                                display=server_name,
+                                display_meta=f"MCP Server: {server_name}",
+                            )
+                return  # Handled /mcp-connect args
+
+            # --- Argument completion for /mcp-remove ---
+            if command == "/mcp-remove" and MCP_AVAILABLE:
+                # Argument is the word being typed, or empty if just after space
+                current_arg = words[1] if word_count > 1 and not on_space else ""
+                # Replace current arg or insert at cursor(0)
+                start_pos = -len(current_arg) if word_count > 1 and not on_space else 0
+
+                # Only show user-defined servers for removal
+                from q.utils.mcp_servers import load_user_mcp_servers
+                user_servers, _ = load_user_mcp_servers()
+                for server_name in user_servers.keys():
                     # Suggest if the server name starts with what user typed
                     if server_name.startswith(current_arg):
                         yield Completion(
                             server_name,
                             start_position=start_pos,
                             display=server_name,
-                            display_meta=f"MCP Server: {server_name}",
+                            display_meta=f"User-defined MCP Server: {server_name}",
                         )
-                return  # Handled /mcp-connect args
+                return  # Handled /mcp-remove args
 
             # --- Argument completion for /save ---
             # This command expects a file path, which is handled by PathCompleter in qprompt.py
@@ -551,192 +585,10 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
     return True  # Command was handled
 
 
-def handle_mcp_connect_command(args: str, context: Dict[str, Any]) -> bool:
-    """
-    Handle the /mcp-connect command to connect to an MCP server.
-
-    Args:
-        args: The server name to connect to (must be defined in constants.MCP_SERVERS)
-        context: Command context (unused)
-
-    Returns:
-        True to indicate the command was handled successfully (continue loop).
-    """
-    if not MCP_AVAILABLE:
-        show_error("MCP functionality is not available. Make sure the 'mcp' package is installed.")
-        return True  # Command was handled (though with an error)
-
-    if not args:
-        show_error("No server name provided. Usage: /mcp-connect <server_name>")
-        
-        # Show available servers
-        if constants.MCP_SERVERS:
-            q_console.print("[bold]Available MCP servers:[/bold]")
-            for server_name, server_info in constants.MCP_SERVERS.items():
-                command = server_info.get("command", "")
-                args_str = " ".join(server_info.get("args", []))
-                q_console.print(f"  [cyan]{server_name}[/cyan]: {command} {args_str}")
-        else:
-            q_console.print("[yellow]No MCP servers defined in constants.MCP_SERVERS[/yellow]")
-        
-        return True  # Command was handled
-
-    server_name = args.strip()
-    if server_name not in constants.MCP_SERVERS:
-        show_error(f"Server '{server_name}' not found in constants.MCP_SERVERS")
-        
-        # Show available servers
-        if constants.MCP_SERVERS:
-            q_console.print("[bold]Available MCP servers:[/bold]")
-            for name, server_info in constants.MCP_SERVERS.items():
-                command = server_info.get("command", "")
-                args_str = " ".join(server_info.get("args", []))
-                q_console.print(f"  [cyan]{name}[/cyan]: {command} {args_str}")
-        
-        return True  # Command was handled
-
-    try:
-        # Create the server connection dictionary in the format expected by mcp_connect
-        server_connection = {server_name: constants.MCP_SERVERS[server_name]}
-        
-        # Connect to the server
-        with q_console.status(f"[bold green]Connecting to MCP server '{server_name}'...[/]"):
-            result = mcp_connect(server_connection)
-        
-        if result.get("status") == "connected":
-            tools_count = result.get("tools_count", 0)
-            tools = result.get("tools", [])
-            
-            # Show success message
-            show_success(f"Connected to MCP server '{server_name}' with {tools_count} tools available")
-            
-            # Display available tools
-            if tools:
-                q_console.print("[bold]Available tools:[/bold]")
-                for tool in tools:
-                    name = tool.get("name", "")
-                    description = tool.get("description", "")
-                    q_console.print(f"  [cyan]{name}[/cyan]: {description}")
-        else:
-            error_msg = result.get("error", "Unknown error")
-            show_error(f"Failed to connect to MCP server '{server_name}': {error_msg}")
-            
-        logger.info(f"MCP connect result: {result}")
-    except Exception as e:
-        show_error(f"Error connecting to MCP server '{server_name}': {str(e)}")
-        logger.error(f"Error during MCP connection to {server_name}: {e}", exc_info=True)
-
-    return True  # Command was handled
-
-
-def handle_mcp_disconnect_command(args: str, context: Dict[str, Any]) -> bool:
-    """
-    Handle the /mcp-disconnect command to disconnect from an MCP server.
-
-    Args:
-        args: The server name to disconnect from
-        context: Command context (unused)
-
-    Returns:
-        True to indicate the command was handled successfully (continue loop).
-    """
-    if not MCP_AVAILABLE:
-        show_error("MCP functionality is not available. Make sure the 'mcp' package is installed.")
-        return True  # Command was handled (though with an error)
-
-    if not args:
-        show_error("No server name provided. Usage: /mcp-disconnect <server_name>")
-        return True  # Command was handled
-
-    server_name = args.strip()
-    
-    try:
-        # Disconnect from the server
-        with q_console.status(f"[bold yellow]Disconnecting from MCP server '{server_name}'...[/]"):
-            result = mcp_disconnect(server_name)
-        
-        if result.get("status") == "disconnected":
-            show_success(f"Disconnected from MCP server '{server_name}'")
-        elif result.get("status") == "not_connected":
-            show_warning(f"Not connected to MCP server '{server_name}'")
-        else:
-            error_msg = result.get("error", "Unknown error")
-            show_error(f"Failed to disconnect from MCP server '{server_name}': {error_msg}")
-            
-        logger.info(f"MCP disconnect result: {result}")
-    except Exception as e:
-        show_error(f"Error disconnecting from MCP server '{server_name}': {str(e)}")
-        logger.error(f"Error during MCP disconnection from {server_name}: {e}", exc_info=True)
-
-    return True  # Command was handled
-
-
-def handle_mcp_list_tools_command(args: str, context: Dict[str, Any]) -> bool:
-    """
-    Handle the /mcp-tools command to list available tools from MCP servers.
-
-    Args:
-        args: Optional server name to list tools from (if empty, lists tools from all servers)
-        context: Command context (unused)
-
-    Returns:
-        True to indicate the command was handled successfully (continue loop).
-    """
-    if not MCP_AVAILABLE:
-        show_error("MCP functionality is not available. Make sure the 'mcp' package is installed.")
-        return True  # Command was handled (though with an error)
-
-    server_name = args.strip() if args else None
-    
-    try:
-        # List tools
-        with q_console.status(f"[bold blue]Listing MCP tools{' for ' + server_name if server_name else ''}...[/]"):
-            result = mcp_list_tools(server_name)
-        
-        if result.get("status") == "success":
-            servers = result.get("servers", [])
-            tools_by_server = result.get("tools", {})
-            
-            if not servers:
-                show_warning("No active MCP server connections found")
-                return True
-                
-            for srv in servers:
-                tools = tools_by_server.get(srv, [])
-                
-                if isinstance(tools, dict) and "error" in tools:
-                    show_error(f"Error listing tools for server '{srv}': {tools['error']}")
-                    continue
-                    
-                q_console.print(f"[bold]Tools for MCP server '{srv}':[/bold]")
-                
-                if not tools:
-                    q_console.print("  [yellow]No tools available[/yellow]")
-                    continue
-                    
-                for tool in tools:
-                    name = tool.get("name", "")
-                    description = tool.get("description", "")
-                    q_console.print(f"  [cyan]{name}[/cyan]: {description}")
-                
-                q_console.print("")  # Add spacing between servers
-        else:
-            error_msg = result.get("error", "Unknown error")
-            show_error(f"Failed to list MCP tools: {error_msg}")
-            
-        logger.info(f"MCP list tools result: {result}")
-    except Exception as e:
-        show_error(f"Error listing MCP tools: {str(e)}")
-        logger.error(f"Error during MCP tool listing: {e}", exc_info=True)
-
-    return True  # Command was handled
-
-
 # Register built-in commands
 # Note: exit/quit/q handlers now return False to signal exit
 register_command("exit", handle_exit_command, "Exit the application")
 register_command("quit", handle_exit_command, "Exit the application")
-register_command("q", handle_exit_command, "Exit the application")
 register_command("/save", handle_save_command, "Save the last response to a file")
 register_command("help", handle_help_command, "Display available commands")
 register_command("?", handle_help_command, "Display available commands")
@@ -770,4 +622,24 @@ if MCP_AVAILABLE:
         "/mcp-tools",
         handle_mcp_list_tools_command,
         "List available tools from MCP servers (e.g., /mcp-tools context7)",
+    )
+    register_command(
+        "/mcp-servers",
+        handle_mcp_list_servers_command,
+        "List all available MCP servers (default and user-defined)",
+    )
+    register_command(
+        "/mcp-add",
+        handle_mcp_add_server_command,
+        "Add a user-defined MCP server (e.g., /mcp-add my-server npx -y @my/mcp-server@latest)",
+    )
+    register_command(
+        "/mcp-remove",
+        handle_mcp_remove_server_command,
+        "Remove a user-defined MCP server (e.g., /mcp-remove my-server)",
+    )
+    register_command(
+        "/mcp-fix",
+        handle_mcp_fix_command,
+        "Fix a malformed MCP servers configuration file",
     )

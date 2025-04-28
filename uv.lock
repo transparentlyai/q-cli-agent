@@ -1722,7 +1722,7 @@ wheels = [
 
 [[package]]
 name = "q-cli-agent"
-version = "0.2.13"
+version = "0.2.14"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },

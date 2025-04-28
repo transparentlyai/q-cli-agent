@@ -12,6 +12,7 @@ Q is a powerful command-line AI assistant that helps you accomplish tasks direct
   - [Commands](#commands)
   - [Operation Types](#operation-types)
   - [Session Management](#session-management)
+  - [MCP Servers](#mcp-servers)
 - [Security](#security)
 - [Examples](#examples)
 - [Troubleshooting](#troubleshooting)
@@ -126,13 +127,19 @@ For complex tasks requiring multiple steps, Q will:
 Q supports several built-in commands:
 
 | Command | Description |
-|---------|-------------|\
-| `exit`, `quit`, `q` | Exit the application |\
-| `/save <filename>` | Save the last response to a file |\
-| `/clear` | Clear the current chat history and terminal screen (keeps system prompt) |\
-| `/recover` | Attempt to recover the previous session |\
-| `/transplant <provider>/<model>` | Switch the LLM provider and model (e.g., `/transplant anthropic/claude-3-5-sonnet-latest`) |\
-| `help`, `?` | Display available commands |\
+|---------|-------------|
+| `exit`, `quit`, `q` | Exit the application |
+| `/save <filename>` | Save the last response to a file |
+| `/clear` | Clear the current chat history and terminal screen (keeps system prompt) |
+| `/recover` | Attempt to recover the previous session |
+| `/transplant <provider>/<model>` | Switch the LLM provider and model (e.g., `/transplant anthropic/claude-3-5-sonnet-latest`) |
+| `/mcp-connect <server>` | Connect to an MCP server |
+| `/mcp-disconnect <server>` | Disconnect from an MCP server |
+| `/mcp-tools [server]` | List available tools from MCP servers |
+| `/mcp-servers` | List all available MCP servers |
+| `/mcp-add <name> <command> [args]` | Add a user-defined MCP server |
+| `/mcp-remove <name>` | Remove a user-defined MCP server |
+| `help`, `?` | Display available commands |
 
 ### Operation Types
 
@@ -155,7 +162,7 @@ Q can perform four types of operations, always asking for your approval first:
 
 3.  **Write Files**: Create or modify files.
     *   When modifying an existing file, Q shows a **diff preview** of the changes before asking for approval.
-    *   When creating a new file, Q shows a **content preview**.\
+    *   When creating a new file, Q shows a **content preview**.
     ```
     Q⏵ Refactor this script to use a class structure.
     Q⏵ Create a Dockerfile for a basic Python web app.
@@ -177,6 +184,53 @@ Q automatically saves your conversation history between runs.
     Q will present the last few turns and ask if you want to restore the session.
 -   **Clearing**: Use the `/clear` command to wipe the current conversation history from the display and Q's memory for the current session. This also clears your terminal screen. The underlying session file for recovery remains untouched until the next interaction.
 -   **Starting Fresh**: Simply running `q` without `--recover` will start a new session, overwriting the previous recovery state.
+
+### MCP Servers
+
+Multi-Context Processing (MCP) servers provide additional tools and capabilities to Q through a standardized interface.
+
+#### Using MCP Servers
+
+1. **Connect to a server**:
+   ```
+   Q⏵ /mcp-connect context7
+   ```
+
+2. **List available tools**:
+   ```
+   Q⏵ /mcp-tools
+   ```
+
+3. **Disconnect from a server**:
+   ```
+   Q⏵ /mcp-disconnect context7
+   ```
+
+4. **List all available servers**:
+   ```
+   Q⏵ /mcp-servers
+   ```
+
+#### Adding Custom MCP Servers
+
+You can add your own custom MCP servers in two ways:
+
+1. **Using the command line**:
+   ```
+   Q⏵ /mcp-add my-server npx -y @my/mcp-server@latest
+   ```
+
+2. **Editing the configuration file** at `~/.config/q/mcp-servers.json`:
+   ```json
+   {
+     "my-server": {
+       "command": "npx",
+       "args": ["-y", "@my/mcp-server@latest"]
+     }
+   }
+   ```
+
+For more details on MCP servers, see the [MCP Servers documentation](q/docs/mcp_servers.md).
 
 ## Security
 
@@ -240,6 +294,14 @@ Q⏵ Fetch the latest release tag from the fastapi github repo, then create a re
 ```
 Q will outline the steps (fetch URL, parse response, write file), then execute them one by one with your approval.
 
+### Example 5: Using MCP Servers
+
+```
+Q⏵ /mcp-connect context7
+Q⏵ Use context7 to search for information about climate change
+```
+Q will connect to the context7 MCP server and use its search tools to find information about climate change.
+
 ## Troubleshooting
 
 ### Common Issues
@@ -259,8 +321,12 @@ Q will outline the steps (fetch URL, parse response, write file), then execute t
     -   Solution: Ensure Q has the necessary read/write permissions for the target file or directory. Check file/directory ownership and permissions (`ls -l`).
 
 4.  **Command Not Found**:
-    -   Error: `Command not found` during a shell operation.\
+    -   Error: `Command not found` during a shell operation.
     -   Solution: Ensure the command Q is trying to run is installed on your system and available in your `PATH`.
+
+5.  **MCP Server Connection Issues**:
+    -   Error: `Failed to connect to MCP server...`
+    -   Solution: Ensure the command specified for the MCP server is valid and that any required packages are installed. Check that any required API keys are set in the environment.
 
 ### Logs
 
@@ -300,6 +366,7 @@ Q supports tab completion for:
 - Built-in commands (`/save`, `/clear`, `exit`, etc.)
 - File paths (when relevant, e.g., for `/save` or when Q expects a path)
 - `/transplant` arguments (suggests available provider/model combinations)
+- `/mcp-connect` and `/mcp-remove` arguments (suggests available MCP servers)
 
 ### Customization
 

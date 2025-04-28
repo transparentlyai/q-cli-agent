@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import json
+import os
 from typing import Dict, List, Any, Optional
 from contextlib import AsyncExitStack
 
@@ -50,15 +51,24 @@ async def _async_connect(server_name: str, connection_info: Dict[str, Any]) -> D
 
     command = connection_info.get("command")
     args = connection_info.get("args", [])
-    env = connection_info.get("env")
+    env_vars = connection_info.get("env", {})
 
     if not command:
         raise ValueError("Server connection info must include 'command'")
 
+    # Merge environment variables with the current environment
+    # Start with a copy of the current environment
+    merged_env = os.environ.copy()
+    
+    # Update with the server-specific environment variables
+    if env_vars:
+        logger.debug(f"Adding environment variables for server {server_name}: {list(env_vars.keys())}")
+        merged_env.update(env_vars)
+
     server_params = StdioServerParameters(
         command=command,
         args=args,
-        env=env
+        env=merged_env
     )
 
     # Create a new exit stack for this connection
@@ -236,6 +246,11 @@ def mcp_connect(server: Dict[str, Any]) -> Dict[str, Any]:
 
     q_console.print(f"Connecting to MCP server: [bold cyan]{server_name}[/]...")
 
+    # Log environment variables if present
+    if "env" in connection_info and connection_info["env"]:
+        env_vars = connection_info["env"]
+        logger.debug(f"Server {server_name} has {len(env_vars)} environment variables: {list(env_vars.keys())}")
+
     try:
         # Get or create an event loop
         loop = _get_event_loop()
@@ -340,4 +355,3 @@ def mcp_call_tool(server: str, tool_name: str, args: Dict[str, Any]) -> Dict[str
             f"[bold red]Error[/] calling tool [bold yellow]'{tool_name}'[/] on [bold cyan]{server}[/]: {e}"
         )
         return {"status": "error", "error": str(e)}
-

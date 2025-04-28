@@ -49,6 +49,7 @@ _command_handler = None
 _user_input_getter = None
 _operation_router = None
 _helpers = None
+_mcp_checker = None
 
 
 def _get_context_loader():
@@ -128,6 +129,20 @@ def _get_helpers():
     return _helpers
 
 
+def _get_mcp_checker():
+    """Lazy import for MCP configuration checker."""
+    global _mcp_checker
+    if _mcp_checker is None:
+        logger.debug("Lazy loading MCP configuration checker")
+        try:
+            from q.utils.mcp_servers import check_mcp_servers_file, USER_MCP_SERVERS_PATH
+            _mcp_checker = (check_mcp_servers_file, USER_MCP_SERVERS_PATH)
+        except ImportError:
+            logger.debug("MCP functionality not available")
+            _mcp_checker = (None, None)
+    return _mcp_checker
+
+
 def main_loop(
     initial_question=None, exit_after_answer=False, allow_all=False, recover=False
 ):
@@ -170,6 +185,19 @@ def main_loop(
             "\nPlease set up your configuration in ~/.config/q/q.conf or environment variables."
         )
         return
+
+    # Check MCP servers configuration
+    check_mcp_servers_file, USER_MCP_SERVERS_PATH = _get_mcp_checker()
+    if check_mcp_servers_file:
+        is_valid, error_msg = check_mcp_servers_file()
+        if not is_valid:
+            logger.warning(f"MCP servers configuration issue: {error_msg}")
+            q_console.print(
+                f"[bold yellow]Warning:[/bold yellow] MCP servers configuration issue: {error_msg}"
+            )
+            q_console.print(
+                f"You can fix this with the [cyan]/mcp-fix[/cyan] command or by editing: {USER_MCP_SERVERS_PATH}"
+            )
 
     if exit_after_answer and initial_question:
         logger.info("Will exit after answering the initial question")

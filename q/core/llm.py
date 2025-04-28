@@ -613,7 +613,8 @@ class LLMConversation:
                 continue
 
             server_name = parts[0]
-            actual_tool_name = parts[1].replace("_", "-") # Convert back
+            # The actual tool name as known by the MCP server (may contain hyphens)
+            actual_tool_name = parts[1]
 
             logger.debug(f"Calling MCP tool '{actual_tool_name}' on server '{server_name}' with args: {tool_args}")
 
