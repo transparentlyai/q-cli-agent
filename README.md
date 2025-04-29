@@ -74,7 +74,7 @@ VERTEXAI_PROJECT_ID=your_gcp_project_id
 VERTEXAI_LOCATION=us-central1
 
 # Default model to use
-MODEL=claude-3-5-sonnet-latest # Example, use a model supported by your provider
+MODEL=claude-3-7-sonnet-latest # Example, use a model supported by your provider
 
 # Optional: Set temperature (0.0 to 1.0)
 TEMPERATURE=0.1
@@ -132,13 +132,15 @@ Q supports several built-in commands:
 | `/save <filename>` | Save the last response to a file |
 | `/clear` | Clear the current chat history and terminal screen (keeps system prompt) |
 | `/recover` | Attempt to recover the previous session |
-| `/transplant <provider>/<model>` | Switch the LLM provider and model (e.g., `/transplant anthropic/claude-3-5-sonnet-latest`) |
+| `/transplant <provider>/<model>` | Switch the LLM provider and model (e.g., `/transplant anthropic/claude-3-7-sonnet-latest`) |
+| `/t-budget <integer>` | Set the Vertex AI thinking budget in tokens (e.g., `/t-budget 4096`) |
 | `/mcp-connect <server>` | Connect to an MCP server |
 | `/mcp-disconnect <server>` | Disconnect from an MCP server |
 | `/mcp-tools [server]` | List available tools from MCP servers |
 | `/mcp-servers` | List all available MCP servers |
 | `/mcp-add <name> <command> [args]` | Add a user-defined MCP server |
 | `/mcp-remove <name>` | Remove a user-defined MCP server |
+| `/mcp-fix` | Fix a malformed MCP servers configuration file |
 | `help`, `?` | Display available commands |
 
 ### Operation Types
@@ -162,7 +164,7 @@ Q can perform four types of operations, always asking for your approval first:
 
 3.  **Write Files**: Create or modify files.
     *   When modifying an existing file, Q shows a **diff preview** of the changes before asking for approval.
-    *   When creating a new file, Q shows a **content preview**.
+    *   When creating a new file, Q shows a **content preview**.\
     ```
     Q⏵ Refactor this script to use a class structure.
     Q⏵ Create a Dockerfile for a basic Python web app.
@@ -173,13 +175,15 @@ Q can perform four types of operations, always asking for your approval first:
     Q⏵ Get the abstract of the paper at https://arxiv.org/abs/xxxx.xxxx
     ```
 
+If an operation is denied by the system (e.g., a prohibited shell command or restricted file path), Q will inform you and stop the current task.
+
 ### Session Management
 
 Q automatically saves your conversation history between runs.
 
 -   **Automatic Saving**: Your session is saved after each interaction.
 -   **Recovery**: If Q exits unexpectedly or you want to continue a previous conversation, you can:
-    -   Start Q with the `--recover` flag: `q --recover`
+    -   Start Q with the `--recover` (`-r`) flag: `q --recover`
     -   Use the `/recover` command within Q.
     Q will present the last few turns and ask if you want to restore the session.
 -   **Clearing**: Use the `/clear` command to wipe the current conversation history from the display and Q's memory for the current session. This also clears your terminal screen. The underlying session file for recovery remains untouched until the next interaction.
@@ -211,16 +215,21 @@ Multi-Context Processing (MCP) servers provide additional tools and capabilities
    Q⏵ /mcp-servers
    ```
 
+5. **Fix a malformed configuration file**:
+   ```
+   Q⏵ /mcp-fix
+   ```
+
 #### Adding Custom MCP Servers
 
 You can add your own custom MCP servers in two ways:
 
-1. **Using the command line**:
+1. **Using the command line**:\
    ```
    Q⏵ /mcp-add my-server npx -y @my/mcp-server@latest
    ```
 
-2. **Editing the configuration file** at `~/.config/q/mcp-servers.json`:
+2. **Editing the configuration file** at `~/.config/q/mcp-servers.json`:\
    ```json
    {
      "my-server": {
@@ -237,8 +246,8 @@ For more details on MCP servers, see the [MCP Servers documentation](q/docs/mcp_
 Q takes security seriously:
 
 -   Shell commands, file operations (read/write), and web fetches require explicit approval by default.
--   Dangerous commands (like `rm`, `mv` with potential risks) are prohibited.
--   System directories and sensitive files are protected from write operations.
+-   Dangerous commands (like `rm`, `mv` with potential risks) are prohibited based on a predefined list.
+-   System directories and sensitive files are protected from write operations based on a predefined list.
 -   Network access is limited to the fetch operation for specified URLs.
 
 ### Operation Approval
@@ -327,6 +336,8 @@ Q will connect to the context7 MCP server and use its search tools to find infor
 5.  **MCP Server Connection Issues**:
     -   Error: `Failed to connect to MCP server...`
     -   Solution: Ensure the command specified for the MCP server is valid and that any required packages are installed. Check that any required API keys are set in the environment.
+    -   Error: `Error in MCP servers configuration...`
+    -   Solution: Use the `/mcp-fix` command or manually edit `~/.config/q/mcp-servers.json` to correct the JSON format.
 
 ### Logs
 
@@ -341,13 +352,15 @@ Q logs detailed information to `~/.q/logs/q.log`. Check this file for debugging 
 q "What are the *.py files in ./src?"
 
 # Exit after answering the initial question
-q --exit-after "Count lines of code in this project"
+q --exit-after-answer "Count lines of code in this project"
+q -e "Count lines of code in this project" # Short flag
 
-# Allow all safe operations without approval (use cautiously)
-q --allow-all "Create a basic Flask app structure"
+# Grant execution of all commands except dangerous or prohibited ones (use cautiously)
+q --all "Create a basic Flask app structure"
 
 # Recover the previous session on startup
 q --recover
+q -r # Short flag
 
 # Show version and exit
 q --version
@@ -367,6 +380,7 @@ Q supports tab completion for:
 - File paths (when relevant, e.g., for `/save` or when Q expects a path)
 - `/transplant` arguments (suggests available provider/model combinations)
 - `/mcp-connect` and `/mcp-remove` arguments (suggests available MCP servers)
+- `/t-budget` (suggests expected input type)
 
 ### Customization
 
