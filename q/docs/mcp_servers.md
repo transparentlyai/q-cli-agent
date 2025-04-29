@@ -82,18 +82,13 @@ You can add your own custom MCP servers in two ways:
 
 ### 1. Using the Command Line
 
-Use the `/mcp-add` command to add a new server:
+Use the `/mcp-add` command followed by a **JSON string** defining one or more servers. The JSON string must represent a dictionary where keys are server names and values are server configuration objects (with `command`, optional `args`, and optional `env` fields).
 
 ```
-/mcp-add my-server npx -y @my/mcp-server@latest
+/mcp-add '{"my-server": {"command": "npx", "args": ["-y", "@my/mcp-server@latest"], "env": {"API_KEY": "secret"}}}'
 ```
 
-This command takes the following arguments:
-- Server name (e.g., `my-server`)
-- Command to run (e.g., `npx`)
-- Optional arguments for the command (e.g., `-y @my/mcp-server@latest`)
-
-Note that this method doesn't allow you to specify environment variables. For that, you'll need to use the configuration file method.
+This method is useful for quickly adding servers from the command line, including specifying arguments and environment variables directly in the JSON.
 
 ### 2. Editing the Configuration File
 
