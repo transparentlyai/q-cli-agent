@@ -21,6 +21,8 @@ Q comes with a default MCP server configuration:
 
 ## Using MCP Servers
 
+Here are the commands available for managing MCP servers:
+
 ### Connecting to a Server
 
 To connect to an MCP server, use the `/mcp-connect` command followed by the server name:
@@ -60,6 +62,19 @@ To see all available MCP servers (both built-in and user-defined), use the `/mcp
 ```
 /mcp-servers
 ```
+
+### Fixing Configuration Issues
+
+If your MCP servers configuration file (`~/.config/q/mcp-servers.json`) becomes malformed or contains errors, Q will display a warning at startup. You can attempt to fix these issues using the `/mcp-fix` command:
+
+```
+/mcp-fix
+```
+
+This command will:
+1. Check if the configuration file exists and is valid.
+2. If there are issues, show you the current content and offer options to fix it.
+3. Allow you to reset the file to an empty configuration or manually edit it.
 
 ## Adding Custom MCP Servers
 
@@ -146,19 +161,6 @@ To remove a custom MCP server, use the `/mcp-remove` command:
 
 Note that you can only remove user-defined servers, not the built-in ones.
 
-## Fixing Configuration Issues
-
-If your MCP servers configuration file becomes malformed or contains errors, Q will display a warning at startup. You can fix these issues using the `/mcp-fix` command:
-
-```
-/mcp-fix
-```
-
-This command will:
-1. Check if the configuration file exists and is valid
-2. If there are issues, show you the current content and offer options to fix it
-3. Allow you to reset the file to an empty configuration or manually edit it
-
 ## MCP Server Protocol
 
 MCP servers communicate with Q using a standardized protocol based on JSON-RPC over stdio. If you're interested in developing your own MCP server, refer to the MCP protocol documentation.
@@ -167,10 +169,10 @@ MCP servers communicate with Q using a standardized protocol based on JSON-RPC o
 
 If you encounter issues with MCP servers:
 
-1. Make sure the required packages are installed (Q will attempt to install them if needed)
-2. Check that the command specified in the server configuration is valid and accessible
-3. Verify that any required environment variables are set correctly in the server configuration
-4. Look for error messages in the Q console when connecting to the server
+1. Make sure the required packages are installed (Q will attempt to install them if needed).
+2. Check that the command specified in the server configuration is valid and accessible.
+3. Verify that any required environment variables are set correctly in the server configuration.
+4. Look for error messages in the Q console when connecting to the server.
 
 If a server fails to connect, Q will display an error message with details about what went wrong.
 
