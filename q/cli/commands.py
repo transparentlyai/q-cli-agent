@@ -389,6 +389,7 @@ def handle_t_budget_command(args: str, context: Dict[str, Any]) -> bool:
         return True
 
     except ValueError:
+        # Corrected usage message
         show_error("Invalid argument. Usage: /t-budget ")
         return True
     except Exception as e:
@@ -424,7 +425,8 @@ def handle_save_last_response_command(args: str, context: Dict[str, Any]) -> boo
         True to indicate the command was handled successfully (continue loop).
     """
     if not args:
-        show_error("No file path provided. Usage: /save-last-response ")
+        # Corrected usage message
+        show_error("No file path provided. Usage: /save-last-response <file-path>")
         return True
 
     # Expecting 'latest_response' to be present in the context dictionary
@@ -535,6 +537,7 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
     conversation = context.get("conversation")  # Get conversation early
 
     if not args:
+        # Corrected usage message
         show_error("No provider/model specified. Usage: /transplant /")
 
         # Show currently active model
@@ -561,6 +564,7 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
 
     # Validate format
     if "/" not in args:
+        # Corrected usage message
         show_error("Invalid format. Use: /transplant /")
         return True  # Command was handled\n
 
@@ -694,6 +698,7 @@ def handle_save_session_command(args: str, context: Dict[str, Any]) -> bool:
         return True
 
     if not args:
+        # Corrected usage message
         show_error("No file path provided. Usage: /save-session ")
         return True
 
@@ -736,9 +741,7 @@ def handle_load_session_command(args: str, context: Dict[str, Any]) -> bool:
         return True
 
     if not args:
-        show_error(
-            "No file path provided. Usage: /load-session "
-        )  # Q: no-change
+        show_error("No file path provided. Usage: /load-session <file-path>")
         return True
 
     # Expand user path (~/)
