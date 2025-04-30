@@ -208,8 +208,10 @@ def main_loop(
         # Set global flag for command approvals
         config.ALLOW_ALL_COMMANDS = True  # type: ignore
 
-    # Store the latest model response for the /save command
+    # Store the latest model response for the old /save command (now unused)
+    # and the last user prompt for the new /save-last-prompt command
     latest_response = ""
+    last_user_prompt = "" # Variable to store the last user prompt
 
     try:
         # 1. Load context variables - lazy load the context module
@@ -259,7 +261,7 @@ def main_loop(
                 )
                 q_console.print(markdown_response)
                 q_console.print("")
-                # Update the latest response for the /save command
+                # Update the latest response (kept for compatibility, though /save is removed)
                 nonlocal latest_response
                 latest_response = text_to_print
 
@@ -284,12 +286,19 @@ def main_loop(
             logger.debug(f"Processing initial question: '{initial_question[:50]}...'")
             q_console.print("")  # Add space before thinking hint
 
+            # Store the initial question as the last prompt
+            last_user_prompt = initial_question
+
             # Get initial response from LLM
             with q_console.status(**THINKING_HINT):  # pyright: ignore
                 model_response = conversation.send_message(initial_question)
 
             # Lazy load operation router
-            execute_operation, extract_operation = _get_operation_router()
+            if _operation_router is None:
+                 execute_operation, extract_operation = _get_operation_router()
+            else:
+                 execute_operation, extract_operation = _operation_router
+
 
             # Process response from the Model
             extraction_result = extract_operation(model_response)
@@ -395,11 +404,16 @@ def main_loop(
                 if not user_input.strip():
                     continue
 
+                # Store the current user input as the last prompt
+                last_user_prompt = user_input
+
                 # Check if input is a command and handle it
-                # Include the conversation instance in the command context
+                # Include the conversation instance and status_func in the command context
                 command_context = {
-                    "latest_response": latest_response,
+                    "latest_response": latest_response, # Kept for compatibility, though /save is removed
                     "conversation": conversation,
+                    "status_func": q_console.status, # Add status_func to context
+                    "last_user_prompt": last_user_prompt, # Add the last user prompt to context
                 }
                 if is_command(user_input):
                     # handle_command returns False for exit commands, True otherwise
@@ -424,6 +438,8 @@ def main_loop(
                 # Make sure operation router is loaded
                 if _operation_router is None:
                     execute_operation, extract_operation = _get_operation_router()
+                else:
+                    execute_operation, extract_operation = _operation_router
 
                 ## Process response from the Model
                 extraction_result = extract_operation(model_response)  # pyright: ignore

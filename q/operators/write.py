@@ -42,9 +42,42 @@ def write_file(file_path: str, content: str) -> Dict[str, Any]:
 
     result = {"reply": "", "error": None}
 
-    # if content starts with ``` and ends with ```, remove the first and last lines
-    if content.startswith("```") and content.endswith("```"):
-        content = "\n".join(content.splitlines()[1:-1])
+    # Remove Markdown code fence if present (```language content ```)
+    lines = content.splitlines()
+    # Log original content details for debugging
+    logger.debug(f"Original content for {file_path} - length: {len(content)}, lines: {len(lines)}")
+    logger.debug(f"First 100 chars: {content[:100]}...")
+    
+    if len(lines) >= 2:
+        first_line = lines[0].strip()
+        last_line = lines[-1].strip()
+        
+        # Log the first and last lines for debugging
+        logger.debug(f"First line: '{first_line}'")
+        logger.debug(f"Last line: '{last_line}'")
+        
+        # Check if content is wrapped in code fences (handles cases with or without language specifier)
+        if first_line.startswith("```") and last_line == "```":
+            # Standard case: Remove first and last line (the code fences)
+            content = "\n".join(lines[1:-1])
+            logger.info(f"Removed standard code fences from content for file: {file_path}")
+        elif first_line.startswith("```") and "```" in last_line:
+            # Handle case where the closing fence might be on the same line as other content
+            last_line_parts = last_line.split("```", 1)
+            if len(last_line_parts) > 1:
+                modified_last_line = last_line_parts[0]
+                # Keep the last line without the fence if it has content
+                if modified_last_line.strip():
+                    lines[-1] = modified_last_line
+                    content = "\n".join(lines[1:])
+                else:
+                    content = "\n".join(lines[1:-1])
+                logger.info(f"Removed code fences with partial last line for file: {file_path}")
+    
+    # Log the processed content
+    if content != "":
+        logger.debug(f"Processed content - length: {len(content)}, lines: {len(content.splitlines())}")
+        logger.debug(f"First 100 chars: {content[:100]}...")
 
     # Check if file exists to determine action message
     file_exists = os.path.exists(file_path)

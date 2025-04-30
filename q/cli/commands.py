@@ -19,7 +19,14 @@ from q.cli.qconsole import q_console, show_error, show_success, show_warning
 from q.core import constants
 from q.core.config import config
 from q.core.logging import get_logger
-from q.core.session import handle_recovery_ui
+from q.core.session import (
+    get_session_summary,  # Import get_session_summary for load-session
+)
+from q.core.session import (  # Import new functions
+    handle_recovery_ui,
+    load_conversation_pickle,
+    save_conversation_pickle,
+)
 from q.utils import llm_helpers  # Import for transplant command
 from q.utils.config_updater import update_config_provider_model
 from q.utils.helpers import get_current_model, save_response_to_file
@@ -107,7 +114,8 @@ def handle_command(input_text: str, context: Optional[Dict[str, Any]] = None) ->
         command_parts = shlex.split(input_text.strip())
     except ValueError:
         # Handle potential parsing errors, e.g., unmatched quotes
-        command_parts = input_text.strip().split(maxsplit=1)
+        show_error("Invalid command syntax.")
+        return True  # Continue loop after showing error
 
     command = command_parts[0].lower() if command_parts else ""
 
@@ -299,10 +307,10 @@ class CommandCompleter(Completer):
                         )
                 return  # Handled /mcp-remove args
 
-            # --- Argument completion for /save ---\n
-            # This command expects a file path, which is handled by PathCompleter in qprompt.py
+            # --- Argument completion for /save-last-response, /save-session, /load-session ---\n
+            # These commands expect a file path, which is handled by PathCompleter in qprompt.py
             # We don't need to yield specific completions here, but we stop processing.\n
-            if command == "/save":
+            if command in ["/save-last-response", "/save-session", "/load-session"]:
                 return
 
             # --- Argument completion for /t-budget ---\n
@@ -315,9 +323,9 @@ class CommandCompleter(Completer):
                     # Suggest a placeholder or hint if no number is started\n
                     if not words[-1].isdigit():
                         yield Completion(
-                            " <integer>",
+                            " ",
                             start_position=0 if word_count == 1 else -len(words[-1]),
-                            display="<integer>",
+                            display="",
                             display_meta="Thinking budget in tokens",
                         )
                 return  # Handled /t-budget args
@@ -381,7 +389,7 @@ def handle_t_budget_command(args: str, context: Dict[str, Any]) -> bool:
         return True
 
     except ValueError:
-        show_error("Invalid argument. Usage: /t-budget <integer>")
+        show_error("Invalid argument. Usage: /t-budget ")
         return True
     except Exception as e:
         show_error(f"An unexpected error occurred: {e}")
@@ -404,25 +412,26 @@ def handle_exit_command(args: str, context: Dict[str, Any]) -> bool:
     return False  # Signal exit
 
 
-def handle_save_command(args: str, context: Dict[str, Any]) -> bool:
+def handle_save_last_response_command(args: str, context: Dict[str, Any]) -> bool:
     """
-    Handle the /save command to save the last response to a file.
+    Handle the /save-last-response command to save the last model response to a file.
 
     Args:
-        args: The file path where to save the response
-        context: Context containing the latest_response
+        args: The file path where to save the response.
+        context: Context containing the latest_response.
 
     Returns:
-        True to indicate the command was handled successfully (continue loop).\n
+        True to indicate the command was handled successfully (continue loop).
     """
     if not args:
-        show_error("No file path provided. Usage: /save <filepath>")
-        return True  # Command was handled (though with an error)\n
+        show_error("No file path provided. Usage: /save-last-response ")
+        return True
 
+    # Expecting 'latest_response' to be present in the context dictionary
     latest_response = context.get("latest_response", "")
     if not latest_response:
-        show_warning("No response to save.")
-        return True  # Command was handled\n
+        show_warning("No previous model response to save.")
+        return True
 
     success, message = save_response_to_file(latest_response, args)
     if success:
@@ -430,7 +439,7 @@ def handle_save_command(args: str, context: Dict[str, Any]) -> bool:
     else:
         show_error(message)
 
-    return True  # Command was handled
+    return True
 
 
 def handle_help_command(args: str, context: Dict[str, Any]) -> bool:
@@ -474,7 +483,7 @@ def handle_clear_command(args: str, context: Dict[str, Any]) -> bool:
     # Show the Q version and model info again (similar to startup)
     # Pass conversation to get potentially updated model info
     q_console.print(
-        f"[#666666]Q ver:{__version__} - brain:{get_current_model(conversation)}[/#666666]"
+        f"[#666666]Q ver:{__version__} - brain:{get_current_model(conversation)}[/#666666]"  # Pass conversation
     )
 
     # Show success message
@@ -489,18 +498,25 @@ def handle_recover_command(args: str, context: Dict[str, Any]) -> bool:
 
     Args:
         args: Command arguments (unused)
-        context: Command context containing the conversation instance
+        context: Command context containing the conversation instance and status function
 
     Returns:
         True to indicate the command was handled successfully (continue loop).\n
     """
     conversation = context.get("conversation")
+    status_func = context.get("status_func")  # Get status function from context
+
     if not conversation:
         show_error("No active conversation to recover into.")
         return True  # Command was handled\n
 
+    if not status_func:
+        show_error("Internal error: Status function not available for recovery.")
+        logger.error("handle_recover_command called without status_func in context")
+        return True
+
     # Use the shared recovery UI handler
-    handle_recovery_ui(conversation, q_console, q_console.status)
+    handle_recovery_ui(conversation, q_console, status_func)
 
     return True  # Command was handled
 
@@ -519,7 +535,7 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
     conversation = context.get("conversation")  # Get conversation early
 
     if not args:
-        show_error("No provider/model specified. Usage: /transplant <provider>/<model>")
+        show_error("No provider/model specified. Usage: /transplant /")
 
         # Show currently active model
         if conversation:
@@ -545,7 +561,7 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
 
     # Validate format
     if "/" not in args:
-        show_error("Invalid format. Use: /transplant <provider>/<model>")
+        show_error("Invalid format. Use: /transplant /")
         return True  # Command was handled\n
 
     target_provider, target_model = args.split("/", 1)
@@ -635,7 +651,7 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
 
         # Update the header/info line - pass conversation object
         q_console.print(
-            f"[#666666]Q ver:{__version__} - brain:{get_current_model(conversation)}[/#666666]"
+            f"[#666666]Q ver:{__version__} - brain:{get_current_model(conversation)}[/#666666]"  # Pass conversation
         )
 
         success_message = f"Successfully transplanted brain to: [purple]{target_provider}/{target_model}[/]"
@@ -658,11 +674,131 @@ def handle_transplant_command(args: str, context: Dict[str, Any]) -> bool:
     return True  # Command was handled
 
 
+# --- New command handlers for session save/load ---
+
+
+def handle_save_session_command(args: str, context: Dict[str, Any]) -> bool:
+    """
+    Handle the /save-session command to save the current conversation history to a file.
+
+    Args:
+        args: The file path where to save the session.
+        context: Context containing the conversation instance.
+
+    Returns:
+        True to indicate the command was handled successfully (continue loop).
+    """
+    conversation = context.get("conversation")
+    if not conversation:
+        show_error("No active conversation instance found.")
+        return True
+
+    if not args:
+        show_error("No file path provided. Usage: /save-session ")
+        return True
+
+    # Expand user path (~/)
+    file_path = os.path.expanduser(args.strip())
+
+    success, message = save_conversation_pickle(conversation, file_path)
+
+    if success:
+        show_success(message)
+    else:
+        show_error(message)
+
+    return True
+
+
+def handle_load_session_command(args: str, context: Dict[str, Any]) -> bool:
+    """
+    Handle the /load-session command to load conversation history from a file.
+
+    Args:
+        args: The file path of the session file.
+        context: Context containing the conversation instance and status function.
+
+    Returns:
+        True to indicate the command was handled successfully (continue loop).
+    """
+    conversation = context.get("conversation")
+    status_func = context.get("status_func")  # Get status function from context
+
+    if not conversation:
+        show_error("No active conversation instance found.")
+        return True
+
+    if not status_func:
+        show_error("Internal error: Status function not available for loading.")
+        logger.error(
+            "handle_load_session_command called without status_func in context"
+        )
+        return True
+
+    if not args:
+        show_error(
+            "No file path provided. Usage: /load-session "
+        )  # Q: no-change
+        return True
+
+    # Expand user path (~/)
+    file_path = os.path.expanduser(args.strip())
+
+    success, message, loaded_messages = load_conversation_pickle(
+        conversation, file_path
+    )
+
+    if success:
+        show_success(message)
+        # Display summary if messages were loaded
+        if loaded_messages is not None and len(loaded_messages) > 0:
+            # Get a summary of the loaded conversation
+            with status_func("Generating summary..."):
+                summary = get_session_summary(
+                    conversation
+                )  # Use the conversation object with loaded messages
+
+            # Print the summary
+            q_console.print("\n[bold]Conversation Summary:[/bold]")
+
+            # Use the rich.markdown.Markdown class if available in the caller's context
+            try:
+                from rich.markdown import Markdown
+
+                markdown_response = Markdown(summary)
+                q_console.print(markdown_response)
+            except (ImportError, NameError):
+                # Fallback if Markdown is not available
+                q_console.print(summary)
+
+            q_console.print("")
+
+    else:
+        show_error(message)
+
+    return True
+
+
 # Register built-in commands
 # Note: exit/quit/q handlers now return False to signal exit
 register_command("exit", handle_exit_command, "Exit the application")
 register_command("quit", handle_exit_command, "Exit the application")
-register_command("/save", handle_save_command, "Save the last response to a file")
+# Register the new command to save the last response
+register_command(
+    "/save-last-response",
+    handle_save_last_response_command,
+    "Save the last model response to a file",
+)
+register_command(
+    "/save-session",
+    handle_save_session_command,
+    "Save the current conversation session to a pickle file",
+)
+register_command(
+    "/load-session",
+    handle_load_session_command,
+    "Load a conversation session from a pickle file",
+)
 register_command("help", handle_help_command, "Display available commands")
 register_command("?", handle_help_command, "Display available commands")
 register_command(
@@ -671,7 +807,7 @@ register_command(
 register_command(
     "/recover",
     handle_recover_command,
-    "Recover a previous session (last 10 turns by default)",
+    "Recover a previous session (last N turns) from the auto-save file",
 )
 register_command(
     "/transplant",
@@ -722,4 +858,3 @@ if MCP_AVAILABLE:
         handle_mcp_fix_command,
         "Fix a malformed MCP servers configuration file",
     )
-
