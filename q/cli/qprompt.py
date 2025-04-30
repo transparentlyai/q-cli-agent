@@ -53,7 +53,11 @@ MULTILINE_HINT = "[Alt+Enter to submit] "  # Hint text for multiline submission
 
 # Define the history file path
 # Use os.path.expanduser to correctly resolve the home directory
-history_file_path = os.path.expanduser("~/.qhistory")  # - Define history path
+history_dir = os.path.expanduser("~/.config/q")
+history_file_path = os.path.join(history_dir, "history")
+
+# Ensure the directory exists
+os.makedirs(history_dir, exist_ok=True)
 
 # Create a FileHistory instance
 q_history = FileHistory(history_file_path)  # - Create history object
@@ -203,7 +207,7 @@ def get_user_input() -> str:
     - Alt+Enter: Toggles multiline mode. Submits when toggled off.
     - Tab: Triggers completion for commands and file paths.
     - Ctrl+C: Shows a message about using 'exit' or 'quit' instead of exiting.
-    Includes persistent history (~/.qhistory).
+    Includes persistent history (~/.config/q/history).
     The multiline prompt includes a grey hint "[Alt+Enter to submit]".
     The prompt shows "AQ⏵ " when auto-approve is active.
 
