@@ -86,7 +86,7 @@ def execute_read(
         return handle_error(
             result,
             f"File not found at '{file_path_str}'",
-            f"STOP: File not found at '{file_path_str}'",
+            f"File not found at '{file_path_str}'",
             "debug",
         )
     except PermissionError:
@@ -118,7 +118,7 @@ def check_approval(file_path_str: str, result: Dict[str, Any]) -> Any:
         reason = approval_status["reason"]
         show_warning(f"Read operation denied: {reason}")
         logger.warning(f"Read operation denied: {reason}")
-        result["reply"] = f"STOP: File read operation failed"
+        result["reply"] = f"File read operation failed"
         result["error"] = reason
         result["attachment"] = None
         return result
@@ -258,7 +258,11 @@ def read_text_file(
                 content = file_path.read_text(encoding="utf-8")
 
             result["reply"] += f"\n\n{content}"
-            result["attachment"] = None
+            result["attachment"] = {
+                "mime_type": "text/plain",
+                "content": content,
+                "encoding": None
+            }
             logger.debug(
                 f"Read text content from '{file_path_str}' ({len(content)} chars)"
             )
@@ -272,7 +276,7 @@ def read_text_file(
             if to_line is not None:
                 line_range.append(f"to line {to_line}")
             success_message += f" ({' '.join(line_range)})"
-            
+
         show_success(success_message)
         return result
     except UnicodeDecodeError:
@@ -304,7 +308,11 @@ def read_pdf_file(
         ):
             markdown_content = convert_pdf_to_markdown(str(file_path))
             result["reply"] += f"\n\n{markdown_content}"
-            result["attachment"] = None
+            result["attachment"] = {
+                "mime_type": "text/markdown",
+                "content": markdown_content,
+                "encoding": None
+            }
             logger.debug(
                 f"Converted PDF to markdown '{file_path_str}' ({len(markdown_content)} chars)"
             )
@@ -402,3 +410,4 @@ def convert_pdf_to_markdown(file_path: str) -> str:
     except Exception as e:
         logger.debug(f"Error in PDF conversion: {e}", exc_info=True)
         raise
+
