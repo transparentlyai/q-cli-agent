@@ -2,7 +2,7 @@
 Q - A command line agent.
 """
 
-__version__ = "0.2.17"
+__version__ = "0.2.18"
 
 # Don't import anything else here to keep startup fast
 # These will be imported when needed
