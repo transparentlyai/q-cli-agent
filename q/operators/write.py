@@ -46,19 +46,6 @@ def write_file(file_path: str, content: str) -> Dict[str, Any]:
     if content.startswith("```") and content.endswith("```"):
         content = "\n".join(content.splitlines()[1:-1])
 
-    # remove double escaped new lines
-    content = content.replace("\\n", "\n")
-    # remove double escaped quotes
-    content = content.replace('\\"', '"')
-    # remove double escaped backslashes
-    content = content.replace("\\\\", "\\")
-    # remove double escaped single quotes
-    content = content.replace("\\'", "'")
-    # remove double escaped tabs
-    content = content.replace("\\t", "\t")
-    # remove double escaped carriage Returns
-    content = content.replace("\\r", "\r")
-
     # Check if file exists to determine action message
     file_exists = os.path.exists(file_path)
     action = "Updating" if file_exists else "Creating"

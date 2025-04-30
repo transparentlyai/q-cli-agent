@@ -42,6 +42,7 @@ dependencies = [
     "google-cloud-aiplatform",
     "tiktoken",
     "mcp>=1.6.0",
+    "pyfzf", # Added pyfzf here
 ]
 
 [project.optional-dependencies]

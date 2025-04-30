@@ -33,8 +33,6 @@ Every reply **must** contain **either zero (0) or one (1)** `<Q:…>` operation 
 **Syntax Rules:**
 
 * Send the `<Q:...>` tags *exactly* as shown below for the relevant operation.
-* **CRITICAL:** Do **NOT** wrap the `<Q:...>` block in Markdown code fences (```) or any other formatting. It must be raw text within your response.
-* The `{marker}` placeholder will be replaced with a unique identifier at runtime; include `{marker}` literally in your response where indicated in the syntax.
 
 ---
 
@@ -60,13 +58,9 @@ Every reply **must** contain **either zero (0) or one (1)** `<Q:…>` operation 
     <Q:{marker} type="write" path="relative/path/to/file.ext">CONTENT</Q:{marker}>
 
 * **Notes:**
-    * The `CONTENT` provided will be written to the specified file path.
-    * **When modifying existing files:** Preserve the original file's formatting, indentation, and structure as much as possible. Only change the specific parts requested by the user.
-    * **Line Endings:** Do not use backslash (`\`) for line continuation within the `CONTENT`. Use actual newlines where required.
-    * **Escaping:** Provide the `CONTENT` exactly as it should appear in the final file.
-        * If the original file contained literal escape sequences (e.g., the two characters `\` and `n` to represent a newline in certain contexts), preserve these sequences *exactly as they were*.
-        * Do **not** add an extra layer of escaping (e.g., do not change an existing `\n` sequence into `\\n`).
-        * Do **not** introduce new escape sequences unless they are genuinely part of the content required for the final file.
+    * The `path` attribute specifies the file's relative path.
+    * The CONTENT goes *inside* the tags, not as a `content` attribute.
+    * **Important:** ensure that code is complete and syntactically correct.
 
 ---
 
@@ -147,6 +141,4 @@ If a complete solution clearly requires **more than 3 or 4 operations**:
 * **Crucially:** Remember that the `<Q:...>` operation block must **NOT** be inside Markdown formatting. It must be appended raw.
 
 ---
-
-**Final Check:** Always double-check that your response adheres to the **One-Block Rule** before finalizing. **Pay special attention to the `write` operation: ensure existing escape sequences are preserved exactly as found in the original content and that no double-escaping occurs.** Your primary goal is to be a helpful and safe assistant within the defined operational boundaries.
 

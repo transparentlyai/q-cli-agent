@@ -1581,6 +1581,15 @@ wheels = [
 ]
 
 [[package]]
+name = "pyfzf"
+version = "0.3.1"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/d4/4c/c0c658a1e1e9f0e01932990d7947579515fe048d0a515f07458ecd992b8f/pyfzf-0.3.1.tar.gz", hash = "sha256:dd902e34cffeca9c3082f96131593dd20b4b3a9bba5b9dde1b0688e424b46bd2", size = 3652, upload_time = "2022-03-01T11:43:51.248Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/99/35/6a6c7b95390ec58904646a04f54e1b56fd57d7a247588b791c6331697797/pyfzf-0.3.1-py3-none-any.whl", hash = "sha256:736f71563461b75f6f85b55345bdc638fa0dc14c32c857c59e8b1ca1cfa3cf4a", size = 4315, upload_time = "2022-03-01T11:43:49.754Z" },
+]
+
+[[package]]
 name = "pygments"
 version = "2.19.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1722,7 +1731,7 @@ wheels = [
 
 [[package]]
 name = "q-cli-agent"
-version = "0.2.14"
+version = "0.2.16"
 source = { editable = "." }
 dependencies = [
     { name = "beautifulsoup4" },
@@ -1738,6 +1747,7 @@ dependencies = [
     { name = "pathspec" },
     { name = "pdfplumber" },
     { name = "prompt-toolkit" },
+    { name = "pyfzf" },
     { name = "pymupdf" },
     { name = "pymupdf4llm" },
     { name = "python-dotenv" },
@@ -1781,6 +1791,7 @@ requires-dist = [
     { name = "pathspec" },
     { name = "pdfplumber" },
     { name = "prompt-toolkit" },
+    { name = "pyfzf" },
     { name = "pymupdf" },
     { name = "pymupdf4llm" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=6.0" },
