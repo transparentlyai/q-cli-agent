@@ -126,22 +126,24 @@ For complex tasks requiring multiple steps, Q will:
 
 Q supports several built-in commands:
 
-| Command | Description |
-|---------|-------------|
-| `exit`, `quit`, `q` | Exit the application |
-| `/save <filename>` | Save the last response to a file |
-| `/clear` | Clear the current chat history and terminal screen (keeps system prompt) |
-| `/recover` | Attempt to recover the previous session |
-| `/transplant <provider>/<model>` | Switch the LLM provider and model (e.g., `/transplant anthropic/claude-3-7-sonnet-latest`) |
-| `/t-budget <integer>` | Set the Vertex AI thinking budget in tokens (e.g., `/t-budget 4096`) |
-| `/mcp-connect <server>` | Connect to an MCP server |
-| `/mcp-disconnect <server>` | Disconnect from an MCP server |
-| `/mcp-tools [server]` | List available tools from MCP servers |
-| `/mcp-servers` | List all available MCP servers |
-| `/mcp-add <name> <command> [args]` | Add a user-defined MCP server |
-| `/mcp-remove <name>` | Remove a user-defined MCP server |
-| `/mcp-fix` | Fix a malformed MCP servers configuration file |
-| `help`, `?` | Display available commands |
+| Command                       | Description                                                                         |
+|-------------------------------|-------------------------------------------------------------------------------------|
+| `exit`, `quit`                | Exit the application                                                                |
+| `/save-last-response ` | Save the last model response to a file                                              |
+| `/save-session `    | Save the current conversation session to a file                              |
+| `/load-session `    | Load a conversation session from a file                                      |
+| `/help [question]`            | Display README.md or answer a question about Q using README.md as context (e.g., /help how do I save a session?) |
+| `/clear`                      | Clear the chat history and terminal screen                                          |
+| `/recover`                    | Recover a previous session (last N turns) from the auto-save file                   |
+| `/transplant /`| Switch the LLM provider and model (e.g., /transplant anthropic/claude-3-7-sonnet-latest)|
+| `/t-budget [integer]`         | Set the Vertex AI thinking budget in tokens (e.g., /t-budget 4096)                  |
+| `/mcp-connect `       | Connect to an MCP server (e.g., /mcp-connect context7)                              |
+| `/mcp-disconnect `    | Disconnect from an MCP server (e.g., /mcp-disconnect context7)                        |
+| `/mcp-tools [server]`         | List available tools from MCP servers (e.g., /mcp-tools context7)                   |
+| `/mcp-servers`                | List all available MCP servers (default and user-defined)                           |
+| `/mcp-add `      | Add user-defined MCP server(s) from a JSON string (e.g., /mcp-add '{"my-server": {"command": "npx", "args": ["-y", "@my/mcp-server@latest"]}}') |
+| `/mcp-remove `          | Remove a user-defined MCP server (e.g., /mcp-remove my-server)                        |
+| `/mcp-fix`                    | Fix a malformed MCP servers configuration file                                      |
 
 ### Operation Types
 
@@ -188,6 +190,8 @@ Q automatically saves your conversation history between runs.
     Q will present the last few turns and ask if you want to restore the session.
 -   **Clearing**: Use the `/clear` command to wipe the current conversation history from the display and Q's memory for the current session. This also clears your terminal screen. The underlying session file for recovery remains untouched until the next interaction.
 -   **Starting Fresh**: Simply running `q` without `--recover` will start a new session, overwriting the previous recovery state.
+-   **Manual Saving**: Use the `/save-session ` command to explicitly save the current conversation to a specified file.
+-   **Loading**: Use the `/load-session ` command to load a previously saved conversation from a file.
 
 ### MCP Servers
 
@@ -226,7 +230,7 @@ You can add your own custom MCP servers in two ways:
 
 1. **Using the command line**:\
    ```
-   Q⏵ /mcp-add my-server npx -y @my/mcp-server@latest
+   Q⏵ /mcp-add '{"my-server": {"command": "npx", "args": ["-y", "@my/mcp-server@latest"]}}'
    ```
 
 2. **Editing the configuration file** at `~/.config/q/mcp-servers.json`:\

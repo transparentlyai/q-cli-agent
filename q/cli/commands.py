@@ -49,6 +49,14 @@ try:
 except ImportError:
     MCP_AVAILABLE = False
 
+# Import rich.markdown for displaying README
+try:
+    from rich.markdown import Markdown
+    RICH_MARKDOWN_AVAILABLE = True
+except ImportError:
+    RICH_MARKDOWN_AVAILABLE = False
+
+
 # Initialize logger
 logger = get_logger(__name__)
 
@@ -461,33 +469,17 @@ def handle_list_commands(args: str, context: Dict[str, Any]) -> bool:
 
 def handle_help_question_command(args: str, context: Dict[str, Any]) -> bool:
     """
-    Handle the /help  command to answer questions using README.md as context.
+    Handle the /help command.
+    If no arguments are provided, display the README.md content.
+    If arguments are provided, answer the question using README.md as context via the LLM.
 
     Args:
-        args: The user's question.
+        args: The user's question or empty string.
         context: Context containing the conversation instance and status function.
 
     Returns:
         True to indicate the command was handled successfully (continue loop).
     """
-    conversation = context.get("conversation")
-    status_func = context.get("status_func")
-
-    if not conversation:
-        show_error("No active conversation instance found.")
-        return True
-
-    if not status_func:
-        show_error("Internal error: Status function not available.")
-        logger.error("handle_help_question_command called without status_func in context")
-        return True
-
-    if not args:
-        show_error("No question provided. Usage: /help ")
-        # Fallback to listing commands if no question is given? Or just show usage?
-        # Let's just show usage as per the requested signature.
-        return True
-
     readme_path = "README.md"
     readme_content = ""
     try:
@@ -500,7 +492,36 @@ def handle_help_question_command(args: str, context: Dict[str, Any]) -> bool:
         return True
     except Exception as e:
         show_error(f"Error reading {readme_path}: {e}")
-        logger.error(f"Error reading {readme_path} for /help command: {e}", exc_info=True)
+        logger.error(
+            f"Error reading {readme_path} for /help command: {e}", exc_info=True
+        )
+        return True
+
+    if not args:
+        # No arguments provided, display README content
+        q_console.print("\n[bold]Q Documentation (README.md):[/bold]\n")
+        if RICH_MARKDOWN_AVAILABLE:
+            markdown_content = Markdown(readme_content)
+            q_console.print(markdown_content)
+        else:
+            # Fallback to plain print if rich.markdown is not available
+            q_console.print(readme_content)
+        q_console.print("")  # Add a newline at the end
+        return True
+
+    # Arguments provided, use LLM to answer the question
+    conversation = context.get("conversation")
+    status_func = context.get("status_func")
+
+    if not conversation:
+        show_error("No active conversation instance found.")
+        return True
+
+    if not status_func:
+        show_error("Internal error: Status function not available.")
+        logger.error(
+            "handle_help_question_command called without status_func in context"
+        )
         return True
 
     # Construct the prompt for the LLM
@@ -773,14 +794,14 @@ def handle_save_session_command(args: str, context: Dict[str, Any]) -> bool:
     Returns:
         True to indicate the command was handled successfully (continue loop).
     """
-    conversation = context.get("conversation")
-    if not conversation:
-        show_error("No active conversation instance found.")
-        return True
-
     if not args:
         # Corrected usage message
         show_error("No file path provided. Usage: /save-session ")
+        return True
+
+    conversation = context.get("conversation")
+    if not conversation:
+        show_error("No active conversation instance found.")
         return True
 
     # Expand user path (~/)
@@ -883,12 +904,11 @@ register_command(
     handle_load_session_command,
     "Load a conversation session from a pickle file",
 )
-# Keep 'help' and '?' for listing commands
-register_command("help", handle_list_commands, "Display available commands")
-register_command("?", handle_list_commands, "Display available commands")
 # Register the new /help command for asking questions with README context
 register_command(
-    "/help", handle_help_question_command, "Get help about Q using README.md as context (e.g., /help how do I save a session?)"
+    "/help",
+    handle_help_question_command,
+    "Display README.md or answer a question about Q (e.g., /help how do I save a session?)",
 )
 register_command(
     "/clear", handle_clear_command, "Clear the chat history and terminal screen"
@@ -935,7 +955,7 @@ if MCP_AVAILABLE:
     register_command(
         "/mcp-add",
         handle_mcp_add_server_command,
-        "Add a user-defined MCP server (e.g., /mcp-add my-server npx -y @my/mcp-server@latest)",
+        'Add user-defined MCP server(s) from a JSON string (e.g., /mcp-add \'{"my-server": {"command": "npx", "args": ["-y", "@my/mcp-server@latest"]}}\')',
     )
     register_command(
         "/mcp-remove",
