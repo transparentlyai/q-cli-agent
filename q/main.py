@@ -135,7 +135,11 @@ def _get_mcp_checker():
     if _mcp_checker is None:
         logger.debug("Lazy loading MCP configuration checker")
         try:
-            from q.utils.mcp_servers import check_mcp_servers_file, USER_MCP_SERVERS_PATH
+            from q.utils.mcp_servers import (
+                USER_MCP_SERVERS_PATH,
+                check_mcp_servers_file,
+            )
+
             _mcp_checker = (check_mcp_servers_file, USER_MCP_SERVERS_PATH)
         except ImportError:
             logger.debug("MCP functionality not available")
@@ -211,7 +215,7 @@ def main_loop(
     # Store the latest model response for the old /save command (now unused)
     # and the last user prompt for the new /save-last-prompt command
     latest_response = ""
-    last_user_prompt = "" # Variable to store the last user prompt
+    last_user_prompt = ""  # Variable to store the last user prompt
 
     try:
         # 1. Load context variables - lazy load the context module
@@ -295,10 +299,9 @@ def main_loop(
 
             # Lazy load operation router
             if _operation_router is None:
-                 execute_operation, extract_operation = _get_operation_router()
+                execute_operation, extract_operation = _get_operation_router()
             else:
-                 execute_operation, extract_operation = _operation_router
-
+                execute_operation, extract_operation = _operation_router
 
             # Process response from the Model
             extraction_result = extract_operation(model_response)
@@ -410,10 +413,10 @@ def main_loop(
                 # Check if input is a command and handle it
                 # Include the conversation instance and status_func in the command context
                 command_context = {
-                    "latest_response": latest_response, # Kept for compatibility, though /save is removed
+                    "latest_response": latest_response,  # Kept for compatibility, though /save is removed
                     "conversation": conversation,
-                    "status_func": q_console.status, # Add status_func to context
-                    "last_user_prompt": last_user_prompt, # Add the last user prompt to context
+                    "status_func": q_console.status,  # Add status_func to context
+                    "last_user_prompt": last_user_prompt,  # Add the last user prompt to context
                 }
                 if is_command(user_input):
                     # handle_command returns False for exit commands, True otherwise
@@ -446,7 +449,7 @@ def main_loop(
                 cleaned_text = extraction_result["text"]
                 operation_details = extraction_result["operation"]
                 parsing_error = extraction_result["error"]
-                
+
                 # Extra check for missed operations (raw tag heuristic)
                 # This is now handled within router.py with the aggressive fallback parser
 
@@ -502,7 +505,7 @@ def main_loop(
                         cleaned_text = extraction_result["text"]
                         operation_details = extraction_result["operation"]
                         parsing_error = extraction_result["error"]
-                        
+
                         # Extra check for missed operations (raw tag heuristic)
                         # This is now handled within router.py with the aggressive fallback parser
 
@@ -601,7 +604,7 @@ def parse_args():
     return parser.parse_args()
 
 
-if __name__ == "__main__":
+def main():
     args = parse_args()
 
     if args.version:
@@ -614,3 +617,8 @@ if __name__ == "__main__":
         allow_all=args.allow_all,
         recover=args.recover,
     )
+
+
+if __name__ == "__main__":
+    main()
+

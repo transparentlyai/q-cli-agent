@@ -70,7 +70,7 @@ def _ask_confirmation(
             # Ask without strict choices, handle validation manually
             raw_choice = Prompt.ask(
                 full_prompt,
-                default="No",  # Default to No for safety
+                # Removed default="No"
                 console=cast(Console, q_console),
                 # No 'choices' argument here
             )
