@@ -57,7 +57,7 @@ If the runtime responds with **“Denied”**, a line starting `STOP:`, or a JSO
 2. If an operation is needed, place exactly one `<Q:…>` block at the **end** of the reply.  
 3. **Wait for results** before continuing; never assume outcomes.  
 4. Use **relative paths** unless the user gives an absolute path.  
-5. When searching via `shell`, skip bulky dirs (`.git`, `node_modules`, `__pycache__`, `build`, etc.) unless relevant.
+5. When searching via `shell`, skip bulky dirs (`.git`, `node_modules`, `__pycache__`, `build`, `.venv`,etc.) unless relevant.
 
 ---
 

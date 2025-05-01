@@ -828,15 +828,31 @@ class LLMConversation:
             else:
                  logger.debug(f"Model {self.model} does not accept 'thinking' parameter.")
 
+        # --- Start Grounding Implementation ---
+        # Find the model entry to check if it accepts 'grounding'
+        current_model_info = next(
+            (
+                m
+                for m in MODELS
+                if m.get("provider") == self.provider and m.get("model") == self.model
+            ),
+            None,
+        )
 
-        # Add response format if provided
-        if response_format:
-            params["response_format"] = response_format
-            logger.debug(f"Using response format: {response_format['type']}")
+        # Initialize final_tools list, starting with any provided tools
+        final_tools = tools.copy() if tools else []
+
+        # Add Google Search tool if the model accepts grounding
+        if current_model_info and "accepts" in current_model_info and "grounding" in current_model_info["accepts"]:
+             final_tools.append({"googleSearch": {}})
+             logger.debug(f"Added Google Search tool for grounding as model {self.model} accepts it.")
+        else:
+             logger.debug(f"Model {self.model} does not accept 'grounding' parameter.")
+        # --- End Grounding Implementation ---
+
 
         # Get MCP tools if available and merge with provided tools
         mcp_tools = self._get_mcp_tools()
-        final_tools = tools.copy() if tools else []
         if mcp_tools:
             final_tools.extend(mcp_tools)
             logger.debug(f"Added {len(mcp_tools)} MCP tools to the request")
@@ -845,7 +861,7 @@ class LLMConversation:
         if final_tools:
             params["tools"] = final_tools
             logger.debug(
-                f"Using tools: {', '.join(tool['function']['name'] for tool in final_tools)}"
+                f"Using tools: {', '.join(tool['function']['name'] if 'function' in tool else list(tool.keys())[0] for tool in final_tools)}"
             )
 
         full_response_text = ""
@@ -1038,11 +1054,41 @@ class LLMConversation:
             else:
                  logger.debug(f"Model {self.model} does not accept 'thinking' parameter.")
 
-        # Get MCP tools if available
+        # --- Start Grounding Implementation ---
+        # Find the model entry to check if it accepts 'grounding'
+        current_model_info = next(
+            (
+                m
+                for m in MODELS
+                if m.get("provider") == self.provider and m.get("model") == self.model
+            ),
+            None,
+        )
+
+        # Initialize final_tools list
+        final_tools = []
+
+        # Add Google Search tool if the model accepts grounding
+        if current_model_info and "accepts" in current_model_info and "grounding" in current_model_info["accepts"]:
+             final_tools.append({"googleSearch": {}})
+             logger.debug(f"Added Google Search tool for grounding as model {self.model} accepts it.")
+        else:
+             logger.debug(f"Model {self.model} does not accept 'grounding' parameter.")
+        # --- End Grounding Implementation ---
+
+        # Get MCP tools if available and merge
         mcp_tools = self._get_mcp_tools()
         if mcp_tools:
-            params["tools"] = mcp_tools
+            final_tools.extend(mcp_tools)
             logger.debug(f"Added {len(mcp_tools)} MCP tools to the request")
+
+        # Add tools if any are defined
+        if final_tools:
+            params["tools"] = final_tools
+            logger.debug(
+                f"Using tools: {', '.join(tool['function']['name'] if 'function' in tool else list(tool.keys())[0] for tool in final_tools)}"
+            )
+
 
         full_response_text = ""
         total_usage = {

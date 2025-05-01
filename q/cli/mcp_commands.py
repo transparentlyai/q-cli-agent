@@ -7,25 +7,28 @@ and managing user-defined server configurations.
 """
 
 import json
+import os  # Added for handle_mcp_fix_command
 import shlex
-import os # Added for handle_mcp_fix_command
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 from q.cli.qconsole import q_console, show_error, show_success, show_warning
 from q.core.logging import get_logger
 from q.utils.mcp_servers import (
-    get_all_mcp_servers,
+    save_user_mcp_servers,  # Added for handle_mcp_fix_command
+)
+from q.utils.mcp_servers import (
+    USER_MCP_SERVERS_PATH,
     add_user_mcp_server,
-    remove_user_mcp_server,
-    load_user_mcp_servers,
-    save_user_mcp_servers, # Added for handle_mcp_fix_command
     check_mcp_servers_file,
-    USER_MCP_SERVERS_PATH
+    get_all_mcp_servers,
+    load_user_mcp_servers,
+    remove_user_mcp_server,
 )
 
 # Import MCP client functions
 try:
     from q.code.mcp import mcp_connect, mcp_disconnect, mcp_list_tools
+
     MCP_AVAILABLE = True
 except ImportError:
     MCP_AVAILABLE = False
@@ -277,21 +280,12 @@ def handle_mcp_list_servers_command(args: str, context: Dict[str, Any]) -> bool:
 
     if not all_servers:
         show_warning("No MCP servers defined")
-        q_console.print(f"You can add servers by creating a JSON file at: {USER_MCP_SERVERS_PATH}")
+        q_console.print(
+            f"You can add servers by creating a JSON file at: {USER_MCP_SERVERS_PATH}"
+        )
         return True
 
     q_console.print("[bold]Available MCP servers:[/bold]")
-
-    # Display default servers
-    q_console.print("\n[bold]Default servers:[/bold]")
-    default_servers = {k: v for k, v in all_servers.items() if k not in user_servers}
-    if default_servers:
-        for server_name, server_info in default_servers.items():
-            command = server_info.get("command", "")
-            args_str = " ".join(server_info.get("args", []))
-            q_console.print(f"  [cyan]{server_name}[/cyan]: {command} {args_str}")
-    else:
-        q_console.print("  [yellow]No default servers defined[/yellow]")
 
     # Display user-defined servers
     q_console.print("\n[bold]User-defined servers:[/bold]")
@@ -301,10 +295,14 @@ def handle_mcp_list_servers_command(args: str, context: Dict[str, Any]) -> bool:
             args_str = " ".join(server_info.get("args", []))
             env_vars = server_info.get("env", {})
             env_str = f" (env: {', '.join(env_vars.keys())})" if env_vars else ""
-            q_console.print(f"  [cyan]{server_name}[/cyan]: {command} {args_str}{env_str}")
+            q_console.print(
+                f"  [cyan]{server_name}[/cyan]: {command} {args_str}{env_str}"
+            )
     else:
         q_console.print("  [yellow]No user-defined servers[/yellow]")
-        q_console.print(f"  You can add servers by creating a JSON file at: {USER_MCP_SERVERS_PATH}")
+        q_console.print(
+            f"  You can add servers by creating a JSON file at: {USER_MCP_SERVERS_PATH}"
+        )
 
     return True  # Command was handled
 
@@ -323,7 +321,9 @@ def handle_mcp_add_server_command(args: str, context: Dict[str, Any]) -> bool:
     """
     if not args:
         show_error("No server definition provided. Usage: /mcp-add '<json_string>'")
-        q_console.print("Example: /mcp-add '{\"my-server\": {\"command\": \"npx\", \"args\": [\"-y\", \"@my/mcp-server@latest\"], \"env\": {\"API_KEY\": \"secret\"}}}'")
+        q_console.print(
+            'Example: /mcp-add \'{"my-server": {"command": "npx", "args": ["-y", "@my/mcp-server@latest"], "env": {"API_KEY": "secret"}}}\''
+        )
         return True
 
     try:
@@ -331,7 +331,9 @@ def handle_mcp_add_server_command(args: str, context: Dict[str, Any]) -> bool:
         servers_to_add = json.loads(args)
 
         if not isinstance(servers_to_add, dict):
-            show_error("Invalid format. The argument must be a JSON string representing a dictionary of servers.")
+            show_error(
+                "Invalid format. The argument must be a JSON string representing a dictionary of servers."
+            )
             return True
 
         added_count = 0
@@ -339,7 +341,9 @@ def handle_mcp_add_server_command(args: str, context: Dict[str, Any]) -> bool:
 
         for server_name, server_config in servers_to_add.items():
             if not isinstance(server_config, dict):
-                show_error(f"Invalid configuration for server '{server_name}'. Must be a dictionary.")
+                show_error(
+                    f"Invalid configuration for server '{server_name}'. Must be a dictionary."
+                )
                 error_count += 1
                 continue
 
@@ -351,13 +355,16 @@ def handle_mcp_add_server_command(args: str, context: Dict[str, Any]) -> bool:
             # Ensure 'args' and 'env' exist and are of correct type, default if missing/wrong
             if not isinstance(server_config.get("args"), list):
                 if "args" in server_config:
-                    show_warning(f"Invalid 'args' for server '{server_name}', expected a list. Using empty list.")
+                    show_warning(
+                        f"Invalid 'args' for server '{server_name}', expected a list. Using empty list."
+                    )
                 server_config["args"] = []
             if not isinstance(server_config.get("env"), dict):
                 if "env" in server_config:
-                     show_warning(f"Invalid 'env' for server '{server_name}', expected a dictionary. Using empty dict.")
+                    show_warning(
+                        f"Invalid 'env' for server '{server_name}', expected a dictionary. Using empty dict."
+                    )
                 server_config["env"] = {}
-
 
             # Add the server
             success, error_msg = add_user_mcp_server(server_name, server_config)
@@ -370,11 +377,10 @@ def handle_mcp_add_server_command(args: str, context: Dict[str, Any]) -> bool:
                 error_count += 1
 
         if added_count > 0:
-             q_console.print(f"Successfully added {added_count} server(s).")
-             q_console.print("You can now connect using: /mcp-connect <server_name>")
+            q_console.print(f"Successfully added {added_count} server(s).")
+            q_console.print("You can now connect using: /mcp-connect <server_name>")
         if error_count > 0:
-             q_console.print(f"Encountered errors while adding {error_count} server(s).")
-
+            q_console.print(f"Encountered errors while adding {error_count} server(s).")
 
     except json.JSONDecodeError as e:
         show_error(f"Invalid JSON provided: {str(e)}")
@@ -473,7 +479,7 @@ def handle_mcp_fix_command(args: str, context: Dict[str, Any]) -> bool:
 
     # Try to fix the file
     try:
-        with open(USER_MCP_SERVERS_PATH, 'r') as f:
+        with open(USER_MCP_SERVERS_PATH, "r") as f:
             file_content = f.read().strip()
 
         q_console.print("[bold]Current content of MCP servers file:[/bold]")
@@ -482,7 +488,9 @@ def handle_mcp_fix_command(args: str, context: Dict[str, Any]) -> bool:
 
         # Ask the user if they want to reset the file
         q_console.print("\nOptions:")
-        q_console.print("  1. Reset to an empty configuration (all user-defined servers will be lost)")
+        q_console.print(
+            "  1. Reset to an empty configuration (all user-defined servers will be lost)"
+        )
         q_console.print("  2. Cancel and manually edit the file")
 
         choice = input("\nEnter your choice (1 or 2): ").strip()
@@ -496,7 +504,9 @@ def handle_mcp_fix_command(args: str, context: Dict[str, Any]) -> bool:
             else:
                 show_error(f"Failed to reset MCP servers file: {error_msg}")
         else:
-            q_console.print(f"\nPlease manually edit the file at: {USER_MCP_SERVERS_PATH}")
+            q_console.print(
+                f"\nPlease manually edit the file at: {USER_MCP_SERVERS_PATH}"
+            )
             q_console.print("Make sure it contains valid JSON in the format:")
             q_console.print("""
 {
@@ -517,3 +527,4 @@ def handle_mcp_fix_command(args: str, context: Dict[str, Any]) -> bool:
         logger.error(f"Error fixing MCP servers file: {e}", exc_info=True)
 
     return True  # Command was handled
+

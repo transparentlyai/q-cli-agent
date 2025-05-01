@@ -432,7 +432,7 @@ MODELS = (
         "provider": "vertexai",
         "model": "gemini-2.5-flash-preview-04-17",
         "description": "Experimental - Small/fast model, 1M tokens CW - oversubscribed",
-        "accepts": ("thinking"),
+        "accepts": ("thinking", "grounding"),
     },
     {
         "provider": "openai",
@@ -445,6 +445,4 @@ MODELS = (
         "description": "Not tested - need API keys",
     },
 )
-MCP_SERVERS = {
-    "context7": {"command": "npx", "args": ["-y", "@upstash/context7-mcp@latest"]}
-}
+
