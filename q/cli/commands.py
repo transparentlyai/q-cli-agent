@@ -426,7 +426,7 @@ def handle_save_last_response_command(args: str, context: Dict[str, Any]) -> boo
     """
     if not args:
         # Corrected usage message
-        show_error("No file path provided. Usage: /save-last-response <file-path>")
+        show_error("No file path provided. Usage: /save-last-response ")
         return True
 
     # Expecting 'latest_response' to be present in the context dictionary
@@ -444,7 +444,7 @@ def handle_save_last_response_command(args: str, context: Dict[str, Any]) -> boo
     return True
 
 
-def handle_help_command(args: str, context: Dict[str, Any]) -> bool:
+def handle_list_commands(args: str, context: Dict[str, Any]) -> bool:
     """
     Handle the help command to display available commands.
 
@@ -457,6 +457,87 @@ def handle_help_command(args: str, context: Dict[str, Any]) -> bool:
     """
     list_commands()
     return True  # Command was handled
+
+
+def handle_help_question_command(args: str, context: Dict[str, Any]) -> bool:
+    """
+    Handle the /help  command to answer questions using README.md as context.
+
+    Args:
+        args: The user's question.
+        context: Context containing the conversation instance and status function.
+
+    Returns:
+        True to indicate the command was handled successfully (continue loop).
+    """
+    conversation = context.get("conversation")
+    status_func = context.get("status_func")
+
+    if not conversation:
+        show_error("No active conversation instance found.")
+        return True
+
+    if not status_func:
+        show_error("Internal error: Status function not available.")
+        logger.error("handle_help_question_command called without status_func in context")
+        return True
+
+    if not args:
+        show_error("No question provided. Usage: /help ")
+        # Fallback to listing commands if no question is given? Or just show usage?
+        # Let's just show usage as per the requested signature.
+        return True
+
+    readme_path = "README.md"
+    readme_content = ""
+    try:
+        with open(readme_path, "r", encoding="utf-8") as f:
+            readme_content = f.read()
+        logger.debug(f"Successfully read {readme_path}")
+    except FileNotFoundError:
+        show_error(f"Error: {readme_path} not found.")
+        logger.error(f"{readme_path} not found for /help command.")
+        return True
+    except Exception as e:
+        show_error(f"Error reading {readme_path}: {e}")
+        logger.error(f"Error reading {readme_path} for /help command: {e}", exc_info=True)
+        return True
+
+    # Construct the prompt for the LLM
+    prompt = f"""
+You are Q, a command-line AI assistant. The user is asking a question about your functionality.
+Below is the content of your README.md file, which describes your features, commands, and usage.
+Use this README content as your primary source of information to answer the user's question.
+If the answer is not explicitly in the README, state that you cannot find the information there.
+Do not use external knowledge beyond the provided README content and your inherent understanding of being an AI assistant.
+
+--- README.md Content ---
+{readme_content}
+--- End README.md Content ---
+
+Based on the README.md content provided above, answer the following question:
+
+{args}
+"""
+
+    # Send the prompt to the LLM
+    try:
+        with status_func("Thinking..."):
+            # Send the constructed prompt. Note: This adds the prompt to the conversation history.
+            # For a pure "help" command that doesn't affect the main conversation flow,
+            # we might consider a separate LLM call that doesn't modify history,
+            # but the current LLMConversation class is designed around history.
+            # For now, adding it to history is acceptable.
+            response = conversation.send_message(prompt)
+
+        # Display the response
+        q_console.print(f"\n[bold]Help Response:[/bold]\n{response}\n")
+
+    except Exception as e:
+        show_error(f"An error occurred while getting help from the model: {e}")
+        logger.error(f"Error getting help response from LLM: {e}", exc_info=True)
+
+    return True
 
 
 def handle_clear_command(args: str, context: Dict[str, Any]) -> bool:
@@ -741,7 +822,7 @@ def handle_load_session_command(args: str, context: Dict[str, Any]) -> bool:
         return True
 
     if not args:
-        show_error("No file path provided. Usage: /load-session <file-path>")
+        show_error("No file path provided. Usage: /load-session ")
         return True
 
     # Expand user path (~/)
@@ -802,8 +883,13 @@ register_command(
     handle_load_session_command,
     "Load a conversation session from a pickle file",
 )
-register_command("help", handle_help_command, "Display available commands")
-register_command("?", handle_help_command, "Display available commands")
+# Keep 'help' and '?' for listing commands
+register_command("help", handle_list_commands, "Display available commands")
+register_command("?", handle_list_commands, "Display available commands")
+# Register the new /help command for asking questions with README context
+register_command(
+    "/help", handle_help_question_command, "Get help about Q using README.md as context (e.g., /help how do I save a session?)"
+)
 register_command(
     "/clear", handle_clear_command, "Clear the chat history and terminal screen"
 )
