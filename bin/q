@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 
 # Find the directory where the script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" &>/dev/null && pwd)"
 
 # Assume the project root is one directory up from the script directory (./bin)
-PROJECT_ROOT="$( dirname "$SCRIPT_DIR" )"
+PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
 # Add the project root to the PYTHONPATH so the 'q' package can be found
 # This is primarily for running outside a venv where the package isn't installed.
@@ -16,4 +16,4 @@ export PYTHONPATH="$PROJECT_ROOT:$PYTHONPATH"
 # This respects activated virtual environments and uses the standard module execution mechanism.
 # This relies on the 'q' package being discoverable by the Python interpreter,
 # either via PYTHONPATH (outside venv) or site-packages (inside venv).
-exec python -m q.main "$@"
+exec $PROJECT_ROOT/.venv/bin/python -m q.main "$@"
