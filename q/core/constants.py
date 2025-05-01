@@ -432,7 +432,7 @@ MODELS = (
         "provider": "vertexai",
         "model": "gemini-2.5-flash-preview-04-17",
         "description": "Experimental - Small/fast model, 1M tokens CW - oversubscribed",
-        "accepts": ("thinking", "grounding"),
+        "accepts": ("thinking"),
     },
     {
         "provider": "openai",
@@ -445,4 +445,3 @@ MODELS = (
         "description": "Not tested - need API keys",
     },
 )
-

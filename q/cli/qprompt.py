@@ -3,8 +3,8 @@
 
 import os
 import sys
-from datetime import datetime # + Import datetime for timestamp parsing/formatting
-from typing import Iterator, List, Tuple # + Import List and Tuple for type hints
+from datetime import datetime
+from typing import Iterator, List, Tuple
 
 from prompt_toolkit import PromptSession
 from prompt_toolkit.completion import (
@@ -235,15 +235,22 @@ def get_user_input() -> str:
             event.cli.output.write("History file is empty.\n")
             return
 
-        # Process lines in pairs (timestamp, command)
-        i = 0
-        while i < len(lines) - 1:
-            timestamp_line = lines[i].strip()
-            command_line = lines[i+1].strip()
-            parsed_entry = _parse_history_entry(timestamp_line, command_line)
-            if parsed_entry:
-                history_data.append(parsed_entry)
-            i += 2 # Move to the next pair
+        # Process lines sequentially, pairing timestamp and command lines
+        timestamp_line = None
+        for line in lines:
+            stripped_line = line.strip()
+            if stripped_line.startswith("# "):
+                # Found a timestamp line, store it
+                timestamp_line = stripped_line
+            elif stripped_line.startswith("+") and timestamp_line is not None:
+                # Found a command line immediately after a timestamp line
+                command_line = stripped_line
+                parsed_entry = _parse_history_entry(timestamp_line, command_line)
+                if parsed_entry:
+                    history_data.append(parsed_entry)
+                # Reset timestamp_line after processing a pair
+                timestamp_line = None
+            # Ignore empty lines or lines that don't fit the pattern
 
         if not history_data:
             event.cli.output.write("No valid history entries found in the expected format.\n")
@@ -367,10 +374,13 @@ if __name__ == "__main__":
     # Create dummy history for testing if needed
     dummy_history_content = """# 2025-03-15 17:02:22.826496
 +ls -l /tmp
+
 # 2025-03-15 17:05:10.123456
 +echo "Hello World"
+
 # 2025-03-16 09:30:00.000000
 +/help
+
 # 2025-03-16 09:31:15.987654
 +cat q/cli/qprompt.py
 """
@@ -419,6 +429,7 @@ if __name__ == "__main__":
                         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")
                         f.write(f"# {ts}\n")
                         f.write(f"+{user_text}\n")
+                        f.write("\n") # Add empty line for consistency with prompt_toolkit's format
                 except IOError as e:
                     print(f"Error writing to history file: {e}")
 
