@@ -99,7 +99,7 @@ def is_command(input_text: str) -> bool:
     return command in command_registry
 
 
-def handle_command(input_text: str, context: Optional[Dict[str, Any]] = None) -> bool:
+def handle_command(input_text: str, context: Optional[Dict[str, Any]] = None) -> Any:
     """
     Process a command if it matches a registered command.
 
@@ -108,13 +108,12 @@ def handle_command(input_text: str, context: Optional[Dict[str, Any]] = None) ->
         context: Optional context data needed by command handlers
 
     Returns:
-        True if the command was handled and the loop should continue.
         False if it was an exit command and the loop should break.
+        None if the command was handled successfully.
+        input_text if it was not a command and should be sent to the LLM.
     """
     if not input_text:
-        return (
-            True  # No input, but command handling is "done" (do nothing, continue loop)
-        )
+        return None  # No input, but command handling is "done" (do nothing, continue loop)
 
     # Extract the command part (before any arguments)
     try:
@@ -123,7 +122,7 @@ def handle_command(input_text: str, context: Optional[Dict[str, Any]] = None) ->
     except ValueError:
         # Handle potential parsing errors, e.g., unmatched quotes
         show_error("Invalid command syntax.")
-        return True  # Continue loop after showing error
+        return None  # Continue loop after showing error
 
     command = command_parts[0].lower() if command_parts else ""
 
@@ -136,10 +135,11 @@ def handle_command(input_text: str, context: Optional[Dict[str, Any]] = None) ->
         logger.debug(f"Executing command: {command} with args: '{args}'")
         # The handler returns True if it handled the command (and loop continues),
         # or False if it's an exit command.
-        return handler(args, context or {})
+        result = handler(args, context or {})
+        return False if result is False else None  # Convert True to None for handled command
 
     # Input was not a registered command, treat as prompt for LLM
-    return True  # Indicate loop should continue
+    return input_text  # Return the input text to be sent to the LLM
 
 
 def list_commands() -> None:

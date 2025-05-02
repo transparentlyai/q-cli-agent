@@ -281,14 +281,19 @@ def main_loop(
         # Lazy load helpers
         get_current_model = _get_helpers()
         logger.info("LLM Conversation initialized. Ready for input.")
-        q_console.print(
-            f"[#666666]Q ver:{__version__} - brain:{get_current_model(conversation)}[/#666666]"  # Pass conversation
-        )
+
+        # Only print version/model info if not exiting after initial question
+        if not exit_after_answer:
+            q_console.print(
+                f"[#666666]Q ver:{__version__} - brain:{get_current_model(conversation)}[/#666666]"  # Pass conversation
+            )
 
         # Process initial question if provided
         if initial_question:
             logger.debug(f"Processing initial question: '{initial_question[:50]}...'")
-            q_console.print("")  # Add space before thinking hint
+            # Only add space before thinking hint if not exiting after answer
+            if not exit_after_answer:
+                 q_console.print("")
 
             # Store the initial question as the last prompt
             last_user_prompt = initial_question
@@ -358,6 +363,9 @@ def main_loop(
                     operation_details = extraction_result["operation"]
                     parsing_error = extraction_result["error"]
 
+                    # Extra check for missed operations (raw tag heuristic)
+                    # This is now handled within router.py with the aggressive fallback parser
+
                     # Print the cleaned text response
                     _print_formatted_response(cleaned_text)
 
@@ -418,117 +426,61 @@ def main_loop(
                     "status_func": q_console.status,  # Add status_func to context
                     "last_user_prompt": last_user_prompt,  # Add the last user prompt to context
                 }
-                if is_command(user_input):
-                    # handle_command returns False for exit commands, True otherwise
-                    should_continue_loop = handle_command(user_input, command_context)
-                    if not should_continue_loop:
-                        # Exit command was handled, break the loop
-                        save_session(conversation.get_conversation_history())
-                        logger.info("Exiting conversation loop on command.")
-                        break
-                    else:
-                        # Command was handled successfully, continue to next input
-                        continue
+                # handle_command returns False for exit, None for handled command, or the input string for LLM
+                command_result = handle_command(user_input, command_context)
 
-                # If it wasn't a command or was a non-exit command that finished, proceed with LLM interaction
-                logger.debug(f"Sending message to LLM: '{user_input[:50]}...'")
-                q_console.print("")  # Add space before thinking hint
-
-                # Get initial response from LLM
-                with q_console.status(**THINKING_HINT):  # pyright: ignore
-                    model_response = conversation.send_message(user_input)
-
-                # Make sure operation router is loaded
-                if _operation_router is None:
-                    execute_operation, extract_operation = _get_operation_router()
+                if command_result is False:
+                    # Exit command was handled, break the loop
+                    save_session(conversation.get_conversation_history())
+                    logger.info("Exiting conversation loop on command.")
+                    break
+                elif command_result is None:
+                    # Command was handled successfully, continue to next input
+                    continue
                 else:
-                    execute_operation, extract_operation = _operation_router
+                    # Input was not a command, treat as prompt for LLM
+                    user_input_for_llm = command_result # This is the original user_input string
+                    
+                    logger.debug(f"Sending message to LLM: '{user_input_for_llm[:50]}...'")
+                    q_console.print("")  # Add space before thinking hint
 
-                ## Process response from the Model
-                extraction_result = extract_operation(model_response)  # pyright: ignore
-                cleaned_text = extraction_result["text"]
-                operation_details = extraction_result["operation"]
-                parsing_error = extraction_result["error"]
+                    # Get initial response from LLM
+                    with q_console.status(**THINKING_HINT):  # pyright: ignore
+                        model_response = conversation.send_message(user_input_for_llm)
 
-                # Extra check for missed operations (raw tag heuristic)
-                # This is now handled within router.py with the aggressive fallback parser
+                    # Make sure operation router is loaded
+                    if _operation_router is None:
+                        execute_operation, extract_operation = _get_operation_router()
+                    else:
+                        execute_operation, extract_operation = _operation_router
 
-                # Print the cleaned text to the console first
-                _print_formatted_response(cleaned_text)
+                    ## Process response from the Model
+                    extraction_result = extract_operation(model_response)  # pyright: ignore
+                    cleaned_text = extraction_result["text"]
+                    operation_details = extraction_result["operation"]
+                    parsing_error = extraction_result["error"]
 
-                # Handle any parsing errors
-                if parsing_error:
-                    logger.error(
-                        f"Parsing error during operation extraction: {parsing_error}"
-                    )
-                    q_console.print(
-                        f"[bold red]Error parsing operation:[/bold red] {parsing_error}"
-                    )
+                    # Extra check for missed operations (raw tag heuristic)
+                    # This is now handled within router.py with the aggressive fallback parser
 
-                # If an operation was found, execute it
-                if operation_details:
-                    logger.info(
-                        f"Found operation of type: {operation_details.get('type')}"
-                    )
-                    execution_result = execute_operation(operation_details)  # pyright: ignore
-                    operation_results = execution_result["results"]
-                    execution_error = execution_result["error"]
+                    # Print the cleaned text to the console first
+                    _print_formatted_response(cleaned_text)
 
-                    if execution_error:
+                    # Handle any parsing errors
+                    if parsing_error:
                         logger.error(
-                            f"Error during operation execution: {execution_error}"
+                            f"Parsing error during operation extraction: {parsing_error}"
+                        )
+                        q_console.print(
+                            f"[bold red]Error parsing operation:[/bold red] {parsing_error}"
                         )
 
-                    # Handle command execution results, potentially looping
-                    while operation_results:
+                    # If an operation was found, execute it
+                    if operation_details:
                         logger.info(
-                            f"Operation executed. Results preview: {str(operation_results)[:100]}"
+                            f"Found operation of type: {operation_details.get('type')}"
                         )
-                        # Send execution results back to LLM for next step/analysis
-                        with q_console.status(**PROCESSING_HINT):  # pyright: ignore
-                            # Check if operation_results contains an attachment
-                            if operation_results.get("attachment"):
-                                logger.debug("Attachment found in operation results")
-                                # Use send_message_with_file for operations with attachments
-                                model_response = conversation.send_message_with_file(
-                                    operation_results.get("reply", ""),
-                                    operation_results["attachment"],
-                                )
-                            else:
-                                # Use standard send_message for text-only results
-                                model_response = conversation.send_message(
-                                    str(operation_results)
-                                )
-
-                        # Process the LLM's response after getting execution results
-                        extraction_result = extract_operation(model_response)  # pyright: ignore
-                        cleaned_text = extraction_result["text"]
-                        operation_details = extraction_result["operation"]
-                        parsing_error = extraction_result["error"]
-
-                        # Extra check for missed operations (raw tag heuristic)
-                        # This is now handled within router.py with the aggressive fallback parser
-
-                        # Print the cleaned text response
-                        _print_formatted_response(cleaned_text)
-
-                        # Handle any parsing errors
-                        if parsing_error:
-                            logger.error(
-                                f"Parsing error during operation extraction: {parsing_error}"
-                            )
-                            q_console.print(
-                                f"[bold red]Error parsing operation:[/bold red] {parsing_error}"
-                            )
-
-                        # If no more operations, we're done
-                        if not operation_details:
-                            logger.debug("Command execution cycle finished.")
-                            break
-
-                        # Execute the next operation - WITHOUT status display
                         execution_result = execute_operation(operation_details)  # pyright: ignore
-
                         operation_results = execution_result["results"]
                         execution_error = execution_result["error"]
 
@@ -537,8 +489,66 @@ def main_loop(
                                 f"Error during operation execution: {execution_error}"
                             )
 
-                # Save the session after each turn
-                save_session(conversation.get_conversation_history())
+                        # Handle command execution results, potentially looping
+                        while operation_results:
+                            logger.info(
+                                f"Operation executed. Results preview: {str(operation_results)[:100]}"
+                            )
+                            # Send execution results back to LLM for next step/analysis
+                            with q_console.status(**PROCESSING_HINT):  # pyright: ignore
+                                # Check if operation_results contains an attachment
+                                if operation_results.get("attachment"):
+                                    logger.debug("Attachment found in operation results")
+                                    # Use send_message_with_file for operations with attachments
+                                    model_response = conversation.send_message_with_file(
+                                        operation_results.get("reply", ""),
+                                        operation_results["attachment"],
+                                    )
+                                else:
+                                    # Use standard send_message for text-only results
+                                    model_response = conversation.send_message(
+                                        str(operation_results)
+                                    )
+
+                            # Process the LLM's response after getting execution results
+                            extraction_result = extract_operation(model_response)  # pyright: ignore
+                            cleaned_text = extraction_result["text"]
+                            operation_details = extraction_result["operation"]
+                            parsing_error = extraction_result["error"]
+
+                            # Extra check for missed operations (raw tag heuristic)
+                            # This is now handled within router.py with the aggressive fallback parser
+
+                            # Print the cleaned text response
+                            _print_formatted_response(cleaned_text)
+
+                            # Handle any parsing errors
+                            if parsing_error:
+                                logger.error(
+                                    f"Parsing error during operation extraction: {parsing_error}"
+                                )
+                                q_console.print(
+                                    f"[bold red]Error parsing operation:[/bold red] {parsing_error}"
+                                )
+
+                            # If no more operations, we're done
+                            if not operation_details:
+                                logger.debug("Command execution cycle finished.")
+                                break
+
+                            # Execute the next operation - WITHOUT status display
+                            execution_result = execute_operation(operation_details)  # pyright: ignore
+
+                            operation_results = execution_result["results"]
+                            execution_error = execution_result["error"]
+
+                            if execution_error:
+                                logger.error(
+                                    f"Error during operation execution: {execution_error}"
+                                )
+
+                    # Save the session after each turn
+                    save_session(conversation.get_conversation_history())
 
             except (
                 EOFError
@@ -579,8 +589,9 @@ def main_loop(
 def parse_args():
     """Parse command-line arguments."""
     parser = argparse.ArgumentParser(description="Q - Command-line AI assistant")
+    # Change nargs from '?' to '*' to capture multiple words
     parser.add_argument(
-        "question", nargs="?", help="Initial question to ask (optional)"
+        "question", nargs="*", help="Initial question to ask (optional)"
     )
     parser.add_argument(
         "--exit-after",
@@ -611,8 +622,14 @@ def main():
         print(f"Q version {__version__}")
         sys.exit(0)
 
+    # Join the list of words from the 'question' argument into a single string
+    initial_q = None
+    if args.question:
+        initial_q = " ".join(args.question)
+        logger.debug(f"Parsed initial question: '{initial_q}'")
+
     main_loop(
-        initial_question=args.question,
+        initial_question=initial_q, # Pass the joined string
         exit_after_answer=args.exit_after,
         allow_all=args.allow_all,
         recover=args.recover,
@@ -621,4 +638,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

@@ -24,7 +24,7 @@ def main():
         "--version", action="store_true", help="Show version information and exit"
     )
     parser.add_argument(
-        "--exit-after-answer", "-e", action="store_true", 
+        "--exit-after-answer", "-e", action="store_true",
         help="Exit after answering the initial question"
     )
     parser.add_argument(
@@ -36,10 +36,12 @@ def main():
         help="Recover previous session"
     )
 
-    # Any remaining arguments will be treated as the initial question
-    parser.add_argument("question", nargs="*", help="Initial question to ask")
+    # Use parse_known_args to capture all arguments not matching defined flags
+    # This allows the initial question to contain spaces without needing quotes
+    args, unknown_args = parser.parse_known_args()
 
-    args = parser.parse_args()
+    # Treat all unknown arguments as the initial question string
+    initial_question = " ".join(unknown_args) if unknown_args else None
 
     # Handle --version flag - no need to import anything else
     if args.version:
@@ -49,13 +51,10 @@ def main():
     # Only import main_loop when needed - after handling simple commands like --version
     from q.main import main_loop  # noqa: E402
 
-    # Join the question arguments into a single string
-    initial_question = " ".join(args.question) if args.question else None
-
     # Call the main loop with the initial question, exit flag, and recover flag
     main_loop(
-        initial_question=initial_question, 
-        exit_after_answer=args.exit_after_answer, 
+        initial_question=initial_question,
+        exit_after_answer=args.exit_after_answer,
         allow_all=args.all,
         recover=args.recover
     )
