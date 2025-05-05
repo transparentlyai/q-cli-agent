@@ -83,17 +83,20 @@ def register_command(name: str, handler: CommandHandler, description: str) -> No
 
 def is_command(input_text: str) -> bool:
     """
-    Check if the input text is a registered command.
+    Check if the input text starts with a registered command.
 
     Args:
         input_text: The user input text
 
     Returns:
-        True if the input is a registered command, False otherwise
+        True if the input starts with a registered command, False otherwise
     """
-    # Extract the command part (before any arguments)
-    command_parts = input_text.strip().split(maxsplit=1)
-    command = command_parts[0].lower() if command_parts else ""
+    # Extract the potential command part (first word)
+    stripped_input = input_text.strip()
+    if not stripped_input:
+        return False
+    command_parts = stripped_input.split(maxsplit=1)
+    command = command_parts[0].lower()
 
     # Check if it's a registered command
     return command in command_registry
@@ -101,7 +104,7 @@ def is_command(input_text: str) -> bool:
 
 def handle_command(input_text: str, context: Optional[Dict[str, Any]] = None) -> Any:
     """
-    Process a command if it matches a registered command.
+    Process a command if it matches a registered command, otherwise return the input.
 
     Args:
         input_text: The user input text
@@ -112,34 +115,41 @@ def handle_command(input_text: str, context: Optional[Dict[str, Any]] = None) ->
         None if the command was handled successfully.
         input_text if it was not a command and should be sent to the LLM.
     """
-    if not input_text:
+    stripped_input = input_text.strip()
+    if not stripped_input:
         return None  # No input, but command handling is "done" (do nothing, continue loop)
 
-    # Extract the command part (before any arguments)
+    # Check if the input starts with a registered command *before* parsing
+    potential_command_parts = stripped_input.split(maxsplit=1)
+    potential_command = potential_command_parts[0].lower()
+
+    if potential_command not in command_registry:
+        # Input does not start with a known command, treat as prompt for LLM
+        return input_text
+
+    # --- Input starts with a known command, proceed with parsing and execution ---
     try:
-        # Use shlex to handle potential quotes in arguments
-        command_parts = shlex.split(input_text.strip())
-    except ValueError:
-        # Handle potential parsing errors, e.g., unmatched quotes
-        show_error("Invalid command syntax.")
+        # Use shlex to handle potential quotes in arguments ONLY for commands
+        command_parts = shlex.split(stripped_input)
+    except ValueError as e:
+        # Handle potential parsing errors within command arguments, e.g., unmatched quotes
+        show_error(f"Invalid command syntax: {e}")
+        logger.warning(f"Command parsing error for input '{stripped_input}': {e}")
         return None  # Continue loop after showing error
 
-    command = command_parts[0].lower() if command_parts else ""
+    # Command is already confirmed to be in registry from the check above
+    command = command_parts[0].lower()
 
     # Get arguments if any
     args = " ".join(command_parts[1:]) if len(command_parts) > 1 else ""
 
-    # Check if it's a registered command
-    if command in command_registry:
-        handler, _ = command_registry[command]
-        logger.debug(f"Executing command: {command} with args: '{args}'")
-        # The handler returns True if it handled the command (and loop continues),
-        # or False if it's an exit command.
-        result = handler(args, context or {})
-        return False if result is False else None  # Convert True to None for handled command
-
-    # Input was not a registered command, treat as prompt for LLM
-    return input_text  # Return the input text to be sent to the LLM
+    # Get the handler and execute it
+    handler, _ = command_registry[command]
+    logger.debug(f"Executing command: {command} with args: '{args}'")
+    # The handler returns True if it handled the command (and loop continues),
+    # or False if it's an exit command.
+    result = handler(args, context or {})
+    return False if result is False else None  # Convert True to None for handled command
 
 
 def list_commands() -> None:
@@ -967,3 +977,9 @@ if MCP_AVAILABLE:
         handle_mcp_fix_command,
         "Fix a malformed MCP servers configuration file",
     )
+
+# Remove the redundant is_command function registration if it exists
+# (It was likely added for testing/debugging and is not a user command)
+if "is_command" in command_registry:
+    del command_registry["is_command"]
+    logger.debug("Removed internal function 'is_command' from command registry")
