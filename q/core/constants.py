@@ -425,7 +425,7 @@ MODELS = (
     },
     {
         "provider": "vertexai",
-        "model": "gemini-2.5-pro-exp-03-25",
+        "model": "gemini-2.5-pro-preview-05-06",
         "description": "Experimental - Large/slow model, 1M tokens CW - oversubscribed",
     },
     {
