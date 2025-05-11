@@ -67,28 +67,7 @@ def extract_operation(text: str) -> Dict[str, Any]:
 
     # Create a custom BeautifulSoup parser with a div wrapper to help with parsing
     # The wrapper helps with potentially malformed or incomplete tags
-    # Create a custom BeautifulSoup parser with a div wrapper to help with parsing
-    # The wrapper helps with potentially malformed or incomplete tags
-    # Save operation tags to exclude them from angle bracket escaping
-    # Use the existing re import
-    operation_pattern = re.compile(r'(<\s*q:operation.*?>|</\s*q:operation\s*>)', re.IGNORECASE | re.DOTALL)
-    operation_matches = operation_pattern.findall(text)
-    
-    # Temporarily replace operation tags
-    escaped_text = text
-    for idx, tag in enumerate(operation_matches):
-        escaped_text = escaped_text.replace(tag, f"##OPTAG{idx}##")
-    
-    # Escape angle brackets that aren't part of HTML tags
-    # This protects JSX syntax like render(<LoginPage />) from being parsed as HTML
-    escaped_text = escaped_text.replace("<", "&lt;").replace(">", "&gt;")
-    
-    # Restore operation tags
-    for idx, tag in enumerate(operation_matches):
-        escaped_text = escaped_text.replace(f"##OPTAG{idx}##", tag)
-    
-    # Now parse with BeautifulSoup
-    wrapped_text = f"<div>{escaped_text}</div>"
+    wrapped_text = f"<div>{text}</div>"
     soup = BeautifulSoup(wrapped_text, "html.parser")
 
     # First try the standard format - case insensitive using CSS selector
@@ -151,9 +130,6 @@ def extract_operation(text: str) -> Dict[str, Any]:
     # Extract tag attributes and content
     attributes = parse_attributes(operation_tag)
     content = operation_tag.get_text().strip()
-    
-    # Unescape any HTML entities that were introduced during the angle bracket protection
-    content = content.replace("&lt;", "<").replace("&gt;", ">")
 
     # Log the extracted attributes and content
     logger.debug(f"Extracted attributes: {attributes}")
@@ -310,10 +286,6 @@ def extract_operation_raw(text: str) -> Dict[str, Any]:
                 # Default to shell as a last resort
                 operation_type = "shell"
 
-        # For any operation type, ensure angle brackets in content are preserved
-        def unescape_brackets(text):
-            return text.replace("&lt;", "<").replace("&gt;", ">")
-            
         # Extract potential content
         # For a shell command, it's usually just the text after the type=
         if operation_type == "shell":
